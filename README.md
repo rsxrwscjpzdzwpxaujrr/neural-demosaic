@@ -1,4 +1,5 @@
 # Neural Demosaic
+![comparison image](assets/comparison.png)
 
 **PackedXTransNet** — a neural demosaicing model for Fujifilm X-Trans sensors.
 
@@ -37,6 +38,8 @@ uv run scripts/inference.py
 ```
 
 Runs tiled inference with crop-discard margins, applies color matrix + ACES tonemap + sRGB gamma, saves to `output/result.png`. Edit `RAF_PATH` and `CKPT` at the top of the script.
+
+You can get a sample raw file [here](https://www.dpreview.com/reviews/image-comparison).
 
 **4. Export to CoreML** (Apple Silicon):
 
