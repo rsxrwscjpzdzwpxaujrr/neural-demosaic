@@ -174,7 +174,7 @@ def main():
             val_psnr = evaluate(model, val_eval)
             model.train()
             marker = ""
-            if val_psnr[0] > best_psnr[0]:
+            if val_psnr[1] > best_psnr[1]:
                 best_psnr = val_psnr
                 torch.save(model.state_dict(), CKPT)
                 marker = " *"
