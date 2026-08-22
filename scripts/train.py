@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from kornia.color.luv import rgb_to_luv
+from kornia.color import rgb_to_xyz
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.cfa import XTRANS_PATTERN, make_mosaic
@@ -60,10 +60,47 @@ def psnr(a, b):
     return -10 * torch.log10(F.mse_loss(a, b)).item()
 
 
+# Taken from kornia
+def lin_rgb_to_luv(image: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
+    if not isinstance(image, torch.Tensor):
+        raise TypeError(f"Input type is not a torch.Tensor. Got {type(image)}")
+
+    if len(image.shape) < 3 or image.shape[-3] != 3:
+        raise ValueError(f"Input size must have a shape of (*, 3, H, W). Got {image.shape}")
+
+    xyz_im: torch.Tensor = rgb_to_xyz(image)
+
+    x: torch.Tensor = xyz_im[..., 0, :, :]
+    y: torch.Tensor = xyz_im[..., 1, :, :]
+    z: torch.Tensor = xyz_im[..., 2, :, :]
+
+    threshold = 0.008856
+    L: torch.Tensor = torch.where(
+        y > threshold,
+        116.0 * torch.pow(y.clamp(min=threshold), 1.0 / 3.0) - 16.0,
+        903.3 * y,
+    )
+
+    # Compute reference white point
+    xyz_ref_white: tuple[float, float, float] = (0.95047, 1.0, 1.08883)
+    u_w: float = (4 * xyz_ref_white[0]) / (xyz_ref_white[0] + 15 * xyz_ref_white[1] + 3 * xyz_ref_white[2])
+    v_w: float = (9 * xyz_ref_white[1]) / (xyz_ref_white[0] + 15 * xyz_ref_white[1] + 3 * xyz_ref_white[2])
+
+    u_p: torch.Tensor = (4 * x) / (x + 15 * y + 3 * z + eps)
+    v_p: torch.Tensor = (9 * y) / (x + 15 * y + 3 * z + eps)
+
+    u: torch.Tensor = 13 * L * (u_p - u_w)
+    v: torch.Tensor = 13 * L * (v_p - v_w)
+
+    out = torch.stack([L, u, v], dim=-3)
+
+    return out
+
+
 # 0 db is just noticable difference, more means less noticable, inspired by CIE76
 def percept_diff(a, b):
-    a_luv = rgb_to_luv(a)
-    b_luv = rgb_to_luv(b)
+    a_luv = lin_rgb_to_luv(a)
+    b_luv = lin_rgb_to_luv(b)
 
     jnd = 2.3
 
@@ -146,7 +183,7 @@ def main():
     print(f"markesteijn PSNR: train {pretty_psnrs(mark_train)}, val {pretty_psnrs(mark_val)}")
 
     CKPT.parent.mkdir(exist_ok=True)
-    best_psnr = tuple((0.0, 0.0))
+    best_psnr = tuple((0.0, float('-inf')))
     running = 0.0
     t0 = time.time()
 
