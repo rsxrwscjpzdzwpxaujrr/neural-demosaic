@@ -26,6 +26,8 @@ LR = 1e-3
 LOG_EVERY = 50
 VAL_EVERY = 500
 
+EXPOSURE_RANGE = (-2.5, 2.5)
+
 
 class GTPatches(Dataset):
     def __init__(self, files):
@@ -43,12 +45,13 @@ class GTPatches(Dataset):
 
         if torch.rand(()) < 0.5:
             patch = patch[::-1]
-            patch = np.ascontiguousarray(patch)
         if torch.rand(()) < 0.5:
             patch = patch[:, ::-1]
-            patch = np.ascontiguousarray(patch)
         if torch.rand(()) < 0.5:
             patch = patch.transpose(1, 0, 2)
+
+        exposure = torch.rand(()).item() * (EXPOSURE_RANGE[1] - EXPOSURE_RANGE[0]) + EXPOSURE_RANGE[0]
+        patch = patch * (2 ** exposure)
 
         mosaic = make_mosaic(patch, XTRANS_PATTERN)
         return torch.from_numpy(mosaic)[None], torch.from_numpy(patch).permute(2, 0, 1)
