@@ -53,11 +53,15 @@ if __name__ == "__main__":
         for raf_file in raf_files:
             file = Path(OUTPUT_PATH / f"{raf_file.stem}_{model_file.stem}.png")
 
-            if file.exists():
-               print(f"skip {file.name} (exists)")
-               continue
+            print(f"{raf_file}...")
 
-            print(f"Decoding {raf_file}...")
+            if file.exists():
+                if file.stat().st_mtime < model_file.stat().st_mtime:
+                    print(f"  file exists, overwriting (old)")
+                else:
+                    print(f"  file exists, skipping")
+                    continue
+
             with rawler_py.RawImage.open(str(raf_file)) as img:
                 print(f"  {img.make} {img.model} | {img.width}x{img.height}")
 
