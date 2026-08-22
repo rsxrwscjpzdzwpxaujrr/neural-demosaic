@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
+from kornia.color.luv import rgb_to_luv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.cfa import XTRANS_PATTERN, make_mosaic
@@ -59,6 +60,16 @@ def psnr(a, b):
     return -10 * torch.log10(F.mse_loss(a, b)).item()
 
 
+# 0 db is just noticable difference, more means less noticable, inspired by CIE76
+def percept_diff(a, b):
+    a_luv = rgb_to_luv(a)
+    b_luv = rgb_to_luv(b)
+
+    jnd = 2.3
+
+    return 20 * np.log10(jnd) + psnr(a_luv, b_luv)
+
+
 def make_eval_pairs(images, size=768):
     pairs = []
     for img in images:
@@ -74,7 +85,20 @@ def make_eval_pairs(images, size=768):
 
 @torch.no_grad()
 def evaluate(fn, pairs):
-    return float(np.mean([psnr(fn(mo.to(DEVICE)), gt.to(DEVICE)) for mo, gt in pairs]))
+    vals = []
+
+    for mo, gt in pairs:
+        mo_d = mo.to(DEVICE)
+        gt_d = gt.to(DEVICE)
+
+        res = fn(mo_d)
+
+        white_psnr = psnr(res, gt_d)
+        diff = percept_diff(res, gt_d)
+
+        vals.append([white_psnr, diff])
+
+    return tuple(np.mean(vals, axis=0))
 
 
 def markesteijn_psnr(pairs):
@@ -87,8 +111,16 @@ def markesteijn_psnr(pairs):
         mosaic = np.pad(mo[0, 0].numpy(), 18, mode="symmetric")
         out = dem.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
         out = torch.from_numpy(np.ascontiguousarray(out[18:-18, 18:-18])).permute(2, 0, 1)[None]
-        vals.append(psnr(out, gt))
-    return float(np.mean(vals))
+
+        white_psnr = psnr(out, gt)
+        diff = percept_diff(out, gt)
+
+        vals.append([white_psnr, diff])
+    return tuple(np.mean(vals, axis=0))
+
+
+def pretty_psnrs(psnrs: tuple) -> str:
+    return f"{psnrs[0]:.2f} ({', '.join(f'{x:.1f}' for x in psnrs[1:])})"
 
 
 def main():
@@ -108,19 +140,20 @@ def main():
     val_eval = make_eval_pairs([np.load(f, mmap_mode="r") for f in val_files])
     base_train = evaluate(model.baseline, train_eval)
     base_val = evaluate(model.baseline, val_eval)
-    print(f"bilinear PSNR:    train {base_train:.2f}, val {base_val:.2f}")
+    print(f"bilinear PSNR:    train {pretty_psnrs(base_train)}, val {pretty_psnrs(base_val)}")
     mark_train = markesteijn_psnr(train_eval)
     mark_val = markesteijn_psnr(val_eval)
-    print(f"markesteijn PSNR: train {mark_train:.2f}, val {mark_val:.2f}")
+    print(f"markesteijn PSNR: train {pretty_psnrs(mark_train)}, val {pretty_psnrs(mark_val)}")
 
     CKPT.parent.mkdir(exist_ok=True)
-    best_psnr = 0.0
+    best_psnr = tuple((0.0, 0.0))
     running = 0.0
     t0 = time.time()
 
     for step, (mosaic, gt) in enumerate(loader, 1):
         mosaic, gt = mosaic.to(DEVICE), gt.to(DEVICE)
         out = model(mosaic)
+
         loss = F.l1_loss(out, gt) + F.l1_loss(gamma(out), gamma(gt))
 
         opt.zero_grad(set_to_none=True)
@@ -141,12 +174,16 @@ def main():
             val_psnr = evaluate(model, val_eval)
             model.train()
             marker = ""
-            if val_psnr > best_psnr:
+            if val_psnr[0] > best_psnr[0]:
                 best_psnr = val_psnr
                 torch.save(model.state_dict(), CKPT)
                 marker = " *"
-            print(f"PSNR train {train_psnr:.2f} (bilin {base_train:.2f}, mark {mark_train:.2f}) | "
-                  f"val {val_psnr:.2f} (bilin {base_val:.2f}, mark {mark_val:.2f}, best {best_psnr:.2f}){marker}")
+            print(
+                f"PSNR train {pretty_psnrs(train_psnr)} "
+                f"(bilin {pretty_psnrs(base_train)}, mark {pretty_psnrs(mark_train)}) | "
+                f"val {pretty_psnrs(val_psnr)} "
+                f"(bilin {pretty_psnrs(base_val)}, mark {pretty_psnrs(mark_val)}, "
+                f"best {pretty_psnrs(best_psnr)}){marker}")
 
         if step >= ITERS:
             break
