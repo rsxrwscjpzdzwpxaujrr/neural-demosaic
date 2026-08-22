@@ -13,3 +13,5 @@ output
 .DS_Store
 data
 *.mlpackage
+
+.idea
