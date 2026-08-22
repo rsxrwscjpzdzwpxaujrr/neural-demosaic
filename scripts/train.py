@@ -109,13 +109,14 @@ def percept_diff(a, b):
     return 20 * np.log10(jnd) + psnr(a_luv, b_luv)
 
 
-def make_eval_pairs(images, size=768):
+def make_eval_pairs(images, size=1080):
+    assert size % 6 == 0, "size must be divisible by 6"
     pairs = []
     for img in images:
         h, w, _ = img.shape
-        s = min(size, min(h, w) // 6 * 6)
-        y, x = (h - s) // 2, (w - s) // 2
-        crop = np.ascontiguousarray(img[y:y + s, x:x + s], dtype=np.float32)
+        h_new, w_new = min(size, h // 6 * 6), min(size, w // 6 * 6)
+        y, x = (h - h_new) // 2, (w - w_new) // 2
+        crop = np.ascontiguousarray(img[y:y + h_new, x:x + w_new], dtype=np.float32)
         gt = torch.from_numpy(crop).permute(2, 0, 1)[None]
         mosaic = torch.from_numpy(make_mosaic(crop, XTRANS_PATTERN))[None, None]
         pairs.append((mosaic, gt))
