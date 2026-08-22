@@ -217,11 +217,8 @@ def main():
                 torch.save(model.state_dict(), CKPT)
                 marker = " *"
             print(
-                f"PSNR train {pretty_psnrs(train_psnr)} "
-                f"(bilin {pretty_psnrs(base_train)}, mark {pretty_psnrs(mark_train)}) | "
-                f"val {pretty_psnrs(val_psnr)} "
-                f"(bilin {pretty_psnrs(base_val)}, mark {pretty_psnrs(mark_val)}, "
-                f"best {pretty_psnrs(best_psnr)}){marker}")
+                f"PSNR train {pretty_psnrs(train_psnr)} (mark {pretty_psnrs(mark_train)}) | "
+                f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}, best {pretty_psnrs(best_psnr)}){marker}")
 
         if step >= ITERS:
             break
