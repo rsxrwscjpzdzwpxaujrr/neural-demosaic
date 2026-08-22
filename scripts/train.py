@@ -12,6 +12,7 @@ from kornia.color import rgb_to_xyz
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.cfa import XTRANS_PATTERN, make_mosaic
 from src.models import PackedXTransNet
+from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
 import functools
 print = functools.partial(print, flush=True)
 
@@ -138,15 +139,12 @@ def evaluate(fn, pairs):
     return tuple(np.mean(vals, axis=0))
 
 
-def markesteijn_psnr(pairs):
-    os.environ.setdefault("PYOPENCL_CTX", "0")
-    from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
-    dem = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
+def markesteijn_psnr(kernels, pairs):
     pattern = XTRANS_PATTERN.astype(np.uint8)
     vals = []
     for mo, gt in pairs:
         mosaic = np.pad(mo[0, 0].numpy(), 18, mode="symmetric")
-        out = dem.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
+        out = kernels.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
         out = torch.from_numpy(np.ascontiguousarray(out[18:-18, 18:-18])).permute(2, 0, 1)[None]
 
         white_psnr = psnr(out, gt)
@@ -178,8 +176,11 @@ def main():
     base_train = evaluate(model.baseline, train_eval)
     base_val = evaluate(model.baseline, val_eval)
     print(f"bilinear PSNR:    train {pretty_psnrs(base_train)}, val {pretty_psnrs(base_val)}")
-    mark_train = markesteijn_psnr(train_eval)
-    mark_val = markesteijn_psnr(val_eval)
+
+    os.environ.setdefault("PYOPENCL_CTX", "0")
+    kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
+    mark_train = markesteijn_psnr(kernels, train_eval)
+    mark_val = markesteijn_psnr(kernels, val_eval)
     print(f"markesteijn PSNR: train {pretty_psnrs(mark_train)}, val {pretty_psnrs(mark_val)}")
 
     CKPT.parent.mkdir(exist_ok=True)
