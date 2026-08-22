@@ -43,11 +43,12 @@ class GTPatches(Dataset):
 
         if torch.rand(()) < 0.5:
             patch = patch[::-1]
+            patch = np.ascontiguousarray(patch)
         if torch.rand(()) < 0.5:
             patch = patch[:, ::-1]
+            patch = np.ascontiguousarray(patch)
         if torch.rand(()) < 0.5:
             patch = patch.transpose(1, 0, 2)
-        patch = np.ascontiguousarray(patch)
 
         mosaic = make_mosaic(patch, XTRANS_PATTERN)
         return torch.from_numpy(mosaic)[None], torch.from_numpy(patch).permute(2, 0, 1)
