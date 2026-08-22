@@ -307,8 +307,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "coremltools", specifier = ">=9.0" },
-    { name = "kornia", specifier = "==0.8.3" },
-    { name = "kornia-rs", specifier = "==0.1.15rc5" },
+    { name = "kornia", specifier = ">=0.8.3" },
+    { name = "kornia-rs", specifier = ">=0.1.15rc5" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "pyopencl", specifier = ">=2026.1.2" },
