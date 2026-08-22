@@ -46,8 +46,14 @@ if __name__ == "__main__":
     raf_files = sorted(RAF_PATH.glob("*"))
 
     for model_file in model_files:
-        model = PackedXTransNet(XTRANS_PATTERN, width=32, depth=8).to(DEVICE)
-        model.load_state_dict(torch.load(model_file, map_location=DEVICE))
+        model_dict = torch.load(model_file, map_location=DEVICE)
+
+        width = model_dict['stem.weight'].shape[0]
+        # magic
+        depth = (len(model_dict) - 6) // 4
+
+        model = PackedXTransNet(XTRANS_PATTERN, width=width, depth=depth).to(DEVICE)
+        model.load_state_dict(model_dict)
         model.eval()
 
         for raf_file in raf_files:
