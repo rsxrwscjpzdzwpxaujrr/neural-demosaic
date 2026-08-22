@@ -10,8 +10,8 @@ from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
 import os
 os.environ['PYOPENCL_CTX'] = '0'
 
-RAF_PATH = "samples/DSCF0049.RAF"
-OUTPUT_PATH = "output/result_markesteijn.png"
+RAF_PATH = Path("samples/")
+OUTPUT_PATH = Path("output/")
 KERNEL_PATH = "src/kernels/demosaic_markesteijn.cl"
 
 
@@ -69,61 +69,71 @@ def apply_orientation(rgb: np.ndarray, orientation: str) -> np.ndarray:
 
 if __name__ == "__main__":
     demosaicer = MarkesteijnOpenCLDemosaicer(kernel_path=KERNEL_PATH)
+    raf_files = sorted(RAF_PATH.glob("*"))
 
-    print(f"Decoding {RAF_PATH}...")
-    with rawler_py.RawImage.open(RAF_PATH) as img:
-        print(f"  {img.make} {img.model} | {img.width}x{img.height}")
+    for raf_file in raf_files:
+        file = Path(OUTPUT_PATH / f"{raf_file.stem}_markesteijn.png")
 
-        if img.active_area is not None:
-            left, top, w, h = img.active_area
-        else:
-            left, top, w, h = 0, 0, img.width, img.height
+        print(f"{raf_file}...")
 
-        print(f"  active {w}x{h} (top={top}, left={left})")
-        raw_data = img.raw_data()[top:top+h, left:left+w].astype(np.float32)
+        if file.exists():
+            print(f"  file exists, skipping")
+            continue
 
-        black = float(img.blacklevel["levels"][0])
-        white = float(img.whitelevel[0])
+        with rawler_py.RawImage.open(str(raf_file)) as img:
+            print(f"  {img.make} {img.model} | {img.width}x{img.height}")
 
-        wb = np.array(img.wb_coeffs[:3], dtype=np.float32)
-        if np.isnan(wb[1]) or wb[1] == 0:
-            wb[1] = 1.0
-        wb /= wb[1]
-        print(f"  WB (G=1): R={wb[0]:.3f} B={wb[2]:.3f}")
-
-        period = 6 if len(img.cfa_pattern) == 36 else 2
-        char_to_color = {"R": 0, "G": 1, "B": 2}
-        pattern_grid = np.zeros((period, period), dtype=np.uint8)
-        for y in range(period):
-            for x in range(period):
-                char = img.cfa_pattern[((y + top) % period) * period + ((x + left) % period)]
-                pattern_grid[y, x] = char_to_color[char]
-
-        cfa = np.clip((raw_data - black) / (white - black), 0.0, 1.2)
-
-        tiled_colors = np.tile(pattern_grid, ((h + period - 1) // period, (w + period - 1) // period))[:h, :w]
-        wb_mask = wb[tiled_colors]
-        cfa = cfa * wb_mask
-
-        print(f"Running Markesteijn demosaic on {w}x{h}...")
-        rgb_hwc = demosaicer.demosaic(raw_image=cfa, xtrans_pattern=pattern_grid, passes=1)
-        rgb = np.transpose(rgb_hwc, (2, 0, 1)).astype(np.float32)
-
-        xyz_to_cam = np.array(img.xyz_to_cam[:3], dtype=np.float32)
-        if not np.any(xyz_to_cam):
-            if "D65" in img.color_matrix:
-                xyz_to_cam = np.array(img.color_matrix["D65"], dtype=np.float32).reshape(3, 3)
-            elif img.color_matrix:
-                first_key = list(img.color_matrix.keys())[0]
-                xyz_to_cam = np.array(img.color_matrix[first_key], dtype=np.float32).reshape(3, 3)
+            if img.active_area is not None:
+                left, top, w, h = img.active_area
             else:
-                xyz_to_cam = np.eye(3, dtype=np.float32)
+                left, top, w, h = 0, 0, img.width, img.height
 
-        rgb = apply_color_matrix(rgb, xyz_to_cam)
-        rgb = apply_aces(rgb)
-        rgb = apply_srgb_gamma(rgb)
-        rgb = apply_orientation(rgb, img.orientation)
+            print(f"  active {w}x{h} (top={top}, left={left})")
+            raw_data = img.raw_data()[top:top+h, left:left+w].astype(np.float32)
 
-    out = np.clip(np.round(np.transpose(rgb, (1, 2, 0)) * 255.0), 0, 255).astype(np.uint8)
-    Image.fromarray(out, 'RGB').save(OUTPUT_PATH)
-    print(f"Saved: {OUTPUT_PATH}")
+            black = float(img.blacklevel["levels"][0])
+            white = float(img.whitelevel[0])
+
+            wb = np.array(img.wb_coeffs[:3], dtype=np.float32)
+            if np.isnan(wb[1]) or wb[1] == 0:
+                wb[1] = 1.0
+            wb /= wb[1]
+            print(f"  WB (G=1): R={wb[0]:.3f} B={wb[2]:.3f}")
+
+            period = 6 if len(img.cfa_pattern) == 36 else 2
+            char_to_color = {"R": 0, "G": 1, "B": 2}
+            pattern_grid = np.zeros((period, period), dtype=np.uint8)
+            for y in range(period):
+                for x in range(period):
+                    char = img.cfa_pattern[((y + top) % period) * period + ((x + left) % period)]
+                    pattern_grid[y, x] = char_to_color[char]
+
+            cfa = np.clip((raw_data - black) / (white - black), 0.0, 1.2)
+
+            tiled_colors = np.tile(pattern_grid, ((h + period - 1) // period, (w + period - 1) // period))[:h, :w]
+            wb_mask = wb[tiled_colors]
+            cfa = cfa * wb_mask
+
+            print(f"  Running Markesteijn demosaic on {w}x{h}...")
+            rgb_hwc = demosaicer.demosaic(raw_image=cfa, xtrans_pattern=pattern_grid, passes=1)
+            rgb = np.transpose(rgb_hwc, (2, 0, 1)).astype(np.float32)
+
+            xyz_to_cam = np.array(img.xyz_to_cam[:3], dtype=np.float32)
+            if not np.any(xyz_to_cam):
+                if "D65" in img.color_matrix:
+                    xyz_to_cam = np.array(img.color_matrix["D65"], dtype=np.float32).reshape(3, 3)
+                elif img.color_matrix:
+                    first_key = list(img.color_matrix.keys())[0]
+                    xyz_to_cam = np.array(img.color_matrix[first_key], dtype=np.float32).reshape(3, 3)
+                else:
+                    xyz_to_cam = np.eye(3, dtype=np.float32)
+
+            rgb = apply_color_matrix(rgb, xyz_to_cam)
+            rgb = apply_aces(rgb)
+            rgb = apply_srgb_gamma(rgb)
+            rgb = apply_orientation(rgb, img.orientation)
+
+        out = np.clip(np.round(np.transpose(rgb, (1, 2, 0)) * 255.0), 0, 255).astype(np.uint8)
+        file.parent.mkdir(exist_ok=True)
+        Image.fromarray(out, 'RGB').save(file)
+        print(f"  Saved: {file}")
