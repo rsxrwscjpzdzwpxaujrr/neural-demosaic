@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.utils import lin_rgb_to_luv
-from src.cfa import XTRANS_PATTERN, make_mosaic
+from src.cfa import XTRANS_PATTERN, get_mosaic_arr
 from src.models import PackedXTransNet
 from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
 import functools
@@ -28,6 +28,12 @@ VAL_EVERY = 500
 
 EXPOSURE_RANGE = (-2.5, 2.5)
 
+YY, XX, CFA_INDICES = get_mosaic_arr((PATCH, PATCH), XTRANS_PATTERN)
+YY, XX, CFA_INDICES = (
+    torch.tensor(         YY, dtype=torch.int32).to(DEVICE),
+    torch.tensor(         XX, dtype=torch.int32).to(DEVICE),
+    torch.tensor(CFA_INDICES, dtype=torch.int32).to(DEVICE),
+)
 
 class GTPatches(Dataset):
     def __init__(self, files):
@@ -41,20 +47,9 @@ class GTPatches(Dataset):
         h, w, _ = img.shape
         y = torch.randint(h - PATCH + 1, ()).item()
         x = torch.randint(w - PATCH + 1, ()).item()
-        patch = img[y:y + PATCH, x:x + PATCH].astype(np.float32)
+        patch = img[y:y + PATCH, x:x + PATCH]
 
-        if torch.rand(()) < 0.5:
-            patch = patch[::-1]
-        if torch.rand(()) < 0.5:
-            patch = patch[:, ::-1]
-        if torch.rand(()) < 0.5:
-            patch = patch.transpose(1, 0, 2)
-
-        exposure = torch.rand(()).item() * (EXPOSURE_RANGE[1] - EXPOSURE_RANGE[0]) + EXPOSURE_RANGE[0]
-        patch = patch * (2 ** exposure)
-
-        mosaic = make_mosaic(patch, XTRANS_PATTERN)
-        return torch.from_numpy(mosaic)[None], torch.from_numpy(patch).permute(2, 0, 1)
+        return torch.tensor(patch)
 
 
 def gamma(x):
@@ -86,7 +81,8 @@ def make_eval_pairs(images, size=1080):
         y, x = (h - h_new) // 2, (w - w_new) // 2
         crop = np.ascontiguousarray(img[y:y + h_new, x:x + w_new], dtype=np.float32)
         gt = torch.from_numpy(crop).permute(2, 0, 1)[None]
-        mosaic = torch.from_numpy(make_mosaic(crop, XTRANS_PATTERN))[None, None]
+        yy, xx, cfa_indices = get_mosaic_arr((h_new, w_new), XTRANS_PATTERN)
+        mosaic = torch.from_numpy(crop[yy, xx, cfa_indices])[None, None]
         pairs.append((mosaic, gt))
     return pairs
 
@@ -127,6 +123,27 @@ def markesteijn_psnr(kernels, pairs):
 def pretty_psnrs(psnrs: tuple) -> str:
     return f"{psnrs[0]:.2f} ({', '.join(f'{x:.1f}' for x in psnrs[1:])})"
 
+@torch.no_grad()
+def preprocess(patch: torch.Tensor):
+    patch = patch.permute(0, 3, 1, 2)
+
+    if torch.rand(()) < 0.5:
+        patch = patch.flip(dims=[2])
+    if torch.rand(()) < 0.5:
+        patch = patch.flip(dims=[3])
+    if torch.rand(()) < 0.5:
+        patch = patch.permute(0, 1, 3, 2)
+
+    exposure = (torch.rand((patch.shape[0], 1, 1, 1), device=DEVICE) *
+                (EXPOSURE_RANGE[1] - EXPOSURE_RANGE[0]) + EXPOSURE_RANGE[0])
+    patch = patch * (2 ** exposure)
+
+    patch = patch.to(dtype=torch.float32)
+
+    mosaic = patch[:, CFA_INDICES, YY, XX][:, None]
+
+    return mosaic, patch
+
 
 def main():
     files = sorted(GT_DIR.glob("*.npy"))
@@ -158,8 +175,8 @@ def main():
     running = 0.0
     t0 = time.time()
 
-    for step, (mosaic, gt) in enumerate(loader, 1):
-        mosaic, gt = mosaic.to(DEVICE), gt.to(DEVICE)
+    for step, gt in enumerate(loader, 1):
+        mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
 
         loss = F.l1_loss(out, gt) + F.l1_loss(gamma(out), gamma(gt))

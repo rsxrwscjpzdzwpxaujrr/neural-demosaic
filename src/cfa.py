@@ -16,17 +16,22 @@ BAYER_PATTERN = np.array([
 ], dtype=np.int32)
 
 
-def make_mosaic(rgb: np.ndarray, pattern: np.ndarray):
+def get_mosaic_arr(shape: tuple, pattern) -> tuple:
     """
-    Projects an RGB image (H, W, 3) onto a mosaiced sensor image (H, W) using a CFA pattern.
-    Pattern is a (ph, pw) ndarray with 0=R, 1=G, 2=B encoding the CFA. 
-    Returns a (H, W) mosaiced array.
+        Return 3 arrays which are used to project an image (H, W, 3) onto mosaic pattern (H, W). Example:
+            yy, xx, cfa_indices = get_mosaic_arr(img.shape, XTRANS_PATTERN)
+            mosaiced = img[yy, xx, cfa_indices]
+
+        Returns:
+            tuple(yy, xx, cfa_indices)
     """
-    H, W = rgb.shape[0], rgb.shape[1]
+    H, W = shape[0], shape[1]
     ph, pw = pattern.shape
     yy, xx = np.ogrid[:H, :W]
+    yy = yy.astype(np.int32)
+    xx = xx.astype(np.int32)
     yy_mod = yy % ph
     xx_mod = xx % pw
     cfa_indices = pattern[yy_mod, xx_mod]
-    mosaic = rgb[yy, xx, cfa_indices]
-    return mosaic
+
+    return yy, xx, cfa_indices
