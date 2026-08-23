@@ -156,6 +156,7 @@ def main():
     parser.add_argument("--patch", type=int, default=96, help="Training patch size. Default 96.")
     parser.add_argument("--batch", type=int, default=32, help="Training batch size. Default 32.")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate. Default 1e-3.")
+    parser.add_argument("--faststart", action="store_true", help="Skip Markesteijn demosaic at start.")
     args = parser.parse_args()
 
     global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES
@@ -186,11 +187,14 @@ def main():
     base_val = evaluate(model.baseline, val_eval)
     print(f"bilinear PSNR:    train {pretty_psnrs(base_train)}, val {pretty_psnrs(base_val)}")
 
-    os.environ.setdefault("PYOPENCL_CTX", "0")
-    kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
-    mark_train = markesteijn_psnr(kernels, train_eval)
-    mark_val = markesteijn_psnr(kernels, val_eval)
-    print(f"markesteijn PSNR: train {pretty_psnrs(mark_train)}, val {pretty_psnrs(mark_val)}")
+    if not args.faststart:
+        os.environ.setdefault("PYOPENCL_CTX", "0")
+        kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
+        mark_train = markesteijn_psnr(kernels, train_eval)
+        mark_val = markesteijn_psnr(kernels, val_eval)
+        print(f"markesteijn PSNR: train {pretty_psnrs(mark_train)}, val {pretty_psnrs(mark_val)}")
+    else:
+        mark_train = mark_val = (float('-inf'), float('-inf'))
 
     CKPT_PATH.mkdir(exist_ok=True)
     ckpt_file = CKPT_PATH / f"{args.name}.pt"
