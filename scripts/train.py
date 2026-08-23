@@ -337,7 +337,7 @@ def main():
 
     if args.plt:
         LOG_PATH.mkdir(exist_ok=True)
-        plt.savefig(LOG_PATH / f"{args.name}.png")
+        plt.savefig(LOG_PATH / f"{args.name}.svg")
 
 if __name__ == "__main__":
     main()
