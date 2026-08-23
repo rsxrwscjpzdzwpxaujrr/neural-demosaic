@@ -111,8 +111,8 @@ if __name__ == "__main__":
 
                 rgb = apply_raw_processing(rgb, img)
 
-            out = np.clip(np.round(np.transpose(rgb, (1, 2, 0)) * 255.0), 0, 255).astype(np.uint8)
+                out = np.clip(np.round(np.transpose(rgb, (1, 2, 0)) * 255.0), 0, 255).astype(np.uint8)
 
-            file.parent.mkdir(exist_ok=True)
-            Image.fromarray(out, "RGB").save(file)
-            print(f"  Saved: {file}")
+                file.parent.mkdir(exist_ok=True)
+                Image.fromarray(out, "RGB").save(file)
+                print(f"  Saved: {file}")

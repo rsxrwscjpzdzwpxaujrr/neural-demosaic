@@ -231,9 +231,6 @@ def main():
                 f"PSNR train {pretty_psnrs(train_psnr)} (mark {pretty_psnrs(mark_train)}) | "
                 f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}, best {pretty_psnrs(best_psnr)}){marker}")
 
-        if step >= ITERS:
-            break
-
 
 if __name__ == "__main__":
     main()
