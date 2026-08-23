@@ -65,8 +65,6 @@ def psnr(a, b):
     return -10 * torch.log10(F.mse_loss(a, b)).item()
 
 
-
-
 # 0 db is just noticable difference, more means less noticable, inspired by CIE76
 def percept_diff(a, b):
     a_luv = lin_rgb_to_luv(a)
@@ -262,10 +260,6 @@ def main():
         if args.plt:
             if step % PLOT_EVERY == 0:
                 with torch.no_grad():
-                    # test = torch.tensor([1.0/100.0, 1.0/250.0, 1.0/250.0])[None, ...].to(DEVICE)
-                    # a_luv = lin_rgb_to_luv(out).permute(0, 2, 3, 1).reshape(-1, PATCH, 3)[0:PATCH * SAMPLES_TO_SHOW:, ...] * test
-                    # b_luv = lin_rgb_to_luv(gt).permute(0, 2, 3, 1).reshape(-1, PATCH, 3)[0:PATCH * SAMPLES_TO_SHOW:, ...] * test
-
                     out_a = gt[0:SAMPLES_TO_PLOT, ...]
                     out_b = out[0:SAMPLES_TO_PLOT, ...]
 
