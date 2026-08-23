@@ -157,6 +157,8 @@ def main():
     parser.add_argument("--patch", type=int, default=96, help="Training patch size. Default 96.")
     parser.add_argument("--batch", type=int, default=32, help="Training batch size. Default 32.")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate. Default 1e-3.")
+    parser.add_argument("--val-since", type=float, default=0.5, help="The amount of progress before we to start doing "
+                                                                     "val. Default 0.5.")
     parser.add_argument("--faststart", action="store_true", help="Skip Markesteijn demosaic at start and limit train "
                                                                  "and val files by 10.")
     args = parser.parse_args()
@@ -228,7 +230,7 @@ def main():
             running = 0.0
             t0 = time.time()
 
-        if step % VAL_EVERY == 0:
+        if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0:
             model.eval()
             train_psnr = evaluate(model, train_eval)
             val_psnr = evaluate(model, val_eval)
