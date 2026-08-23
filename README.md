@@ -41,20 +41,6 @@ Runs tiled inference with crop-discard margins, applies color matrix + ACES tone
 
 You can get a sample raw file [here](https://www.dpreview.com/reviews/image-comparison).
 
-**4. Export to CoreML** (Apple Silicon):
-
-```bash
-uv run scripts/export_coreml.py
-```
-
-Traces the model for a fixed tile size, converts to fp16 CoreML targeting the Neural Engine, then benchmarks. Edit `CKPT` and `OUT` paths at the top.
-
-**5. CoreML inference:**
-
-```bash
-uv run scripts/inference_coreml.py
-```
-
 ## Future work
 
 - Synthetic data to improve high-frequency detail reproduction
