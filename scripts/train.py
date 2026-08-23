@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -13,8 +14,8 @@ from src.utils import lin_rgb_to_luv
 from src.cfa import XTRANS_PATTERN, get_mosaic_arr
 from src.models import PackedXTransNet
 from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
-import functools
-print = functools.partial(print, flush=True)
+
+print = tqdm.write
 
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 GT_DIR = Path("data/gt")
@@ -179,7 +180,7 @@ def main():
     running = 0.0
     t0 = time.time()
 
-    for step, gt in enumerate(loader, 1):
+    for step, gt in tqdm(enumerate(loader, 1), total=ITERS, miniters=10):
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
 
