@@ -250,7 +250,7 @@ def main():
             val_psnr = evaluate(model, val_eval)
             model.train()
             marker = ""
-            if val_psnr[1] > best_psnr[1]:
+            if val_psnr[0] > best_psnr[0]:
                 best_psnr = val_psnr
                 torch.save(model.state_dict(), ckpt_file)
                 pbar.set_postfix_str(f"Best PSNR: {best_psnr[0]:.2f}dB")
