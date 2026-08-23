@@ -203,7 +203,8 @@ def main():
     running = 0.0
     t0 = time.time()
 
-    for step, gt in tqdm(enumerate(loader, 1), total=ITERS, miniters=10):
+    pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10)
+    for step, gt in pbar:
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
 
@@ -230,10 +231,11 @@ def main():
             if val_psnr[1] > best_psnr[1]:
                 best_psnr = val_psnr
                 torch.save(model.state_dict(), ckpt_file)
+                pbar.set_postfix_str(f"Best PSNR: {best_psnr[0]:.2f}dB")
                 marker = " *"
             print(
                 f"PSNR train {pretty_psnrs(train_psnr)} (mark {pretty_psnrs(mark_train)}) | "
-                f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}, best {pretty_psnrs(best_psnr)}){marker}")
+                f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}){marker}")
 
 
 if __name__ == "__main__":
