@@ -203,7 +203,7 @@ def main():
     running = 0.0
     t0 = time.time()
 
-    pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10)
+    pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.25, maxinterval=99999.9, smoothing=0.2)
     for step, gt in pbar:
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
