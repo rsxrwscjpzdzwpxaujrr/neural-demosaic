@@ -13,4 +13,6 @@ dependencies = [
     "kornia>=0.8.3",
     "kornia-rs>=0.1.15rc5",
     "tqdm>=4.70.0",
+    "matplotlib>=3.11.1",
+    "pyqt6>=6.11.0",
 ]

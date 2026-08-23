@@ -7,6 +7,7 @@ import argparse
 import numpy as np
 import torch
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
@@ -28,6 +29,8 @@ ITERS = 0
 LR = 0.0
 LOG_EVERY = 50
 VAL_EVERY = 500
+PLOT_EVERY = 500
+SAMPLES_TO_PLOT = 5
 
 EXPOSURE_RANGE = (-2.5, 2.5)
 
@@ -161,6 +164,7 @@ def main():
                                                                      "val. Default 0.5.")
     parser.add_argument("--faststart", action="store_true", help="Skip Markesteijn demosaic at start and limit train "
                                                                  "and val files by 10.")
+    parser.add_argument("--plt", action="store_true", help="Show result pics during training.")
     args = parser.parse_args()
 
     global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES
@@ -211,6 +215,16 @@ def main():
     running = 0.0
     t0 = time.time()
 
+    if args.plt:
+        dpi = plt.rcParams['figure.dpi']
+
+        fig = plt.figure(figsize=((3 * PATCH) / dpi, (SAMPLES_TO_PLOT * PATCH) / dpi))
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.axis('off')
+
+        plt.ion()
+        plt.show()
+
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.25, maxinterval=99999.9, smoothing=0.2)
     for step, gt in pbar:
         mosaic, gt = preprocess(gt.to(DEVICE))
@@ -244,6 +258,25 @@ def main():
             print(
                 f"PSNR train {pretty_psnrs(train_psnr)} (mark {pretty_psnrs(mark_train)}) | "
                 f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}){marker}")
+
+        if args.plt:
+            if step % PLOT_EVERY == 0:
+                with torch.no_grad():
+                    # test = torch.tensor([1.0/100.0, 1.0/250.0, 1.0/250.0])[None, ...].to(DEVICE)
+                    # a_luv = lin_rgb_to_luv(out).permute(0, 2, 3, 1).reshape(-1, PATCH, 3)[0:PATCH * SAMPLES_TO_SHOW:, ...] * test
+                    # b_luv = lin_rgb_to_luv(gt).permute(0, 2, 3, 1).reshape(-1, PATCH, 3)[0:PATCH * SAMPLES_TO_SHOW:, ...] * test
+
+                    out_a = gt[0:SAMPLES_TO_PLOT, ...]
+                    out_b = out[0:SAMPLES_TO_PLOT, ...]
+
+                    pics = [gamma(out_a), gamma(out_b), (((out_a - out_b) * 10.0) + 0.5)]
+                    pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
+
+                    pic = torch.cat(pics, dim=1)
+
+                    plt.imshow(pic.cpu().numpy())
+
+            fig.canvas.flush_events()
 
 
 if __name__ == "__main__":
