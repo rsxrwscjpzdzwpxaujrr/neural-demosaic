@@ -29,7 +29,7 @@ PATCH = 0
 BATCH = 0
 ITERS = 0
 LR = 0.0
-LOG_EVERY = 50
+LOG_EVERY = 250
 VAL_EVERY = 1000
 PLOT_EVERY = 500
 SAMPLES_TO_PLOT = 5
@@ -175,7 +175,7 @@ def init_plt():
     ax_psnr.grid(True, axis='y', color='mistyrose', linewidth=1)
     ax_psnr.autoscale(enable=True, axis='y')
 
-    line_psnr, = ax_psnr.plot([0], color='tab:red', marker='o')
+    line_psnr, = ax_psnr.plot([], color='tab:red', marker='o')
 
     ax_psnr.set_ylabel("PSNR", color='red')
     ax_psnr.yaxis.set_major_formatter(ticker.EngFormatter(unit='dB'))
@@ -255,12 +255,13 @@ def main():
     if args.plt:
         fig, ax_pic, ax_loss, line_loss, ax_psnr, line_psnr = init_plt()
 
-        step_loss_x = np.zeros(ITERS)
-        step_loss_y = np.zeros(ITERS)
-        step_loss_count = 0
+        line_loss.set_xdata(np.arange(LOG_EVERY, ITERS + LOG_EVERY, LOG_EVERY))
+        line_loss.set_ydata(np.zeros(ITERS // LOG_EVERY))
 
-        step_psnr_x = np.zeros(ITERS)
-        step_psnr_y = np.zeros(ITERS)
+        loss_path = line_loss.get_path()
+
+        step_psnr_x = np.zeros((ITERS - int(ITERS * args.val_since)) // VAL_EVERY)
+        step_psnr_y = np.zeros((ITERS - int(ITERS * args.val_since)) // VAL_EVERY)
         step_psnr_count = 0
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.25, maxinterval=99999.9, smoothing=0.2)
@@ -283,15 +284,13 @@ def main():
             t0 = time.time()
 
             if args.plt:
-                step_loss_x[step_loss_count] = step
-                step_loss_y[step_loss_count] = loss.item()
+                loss_path.vertices[(step // LOG_EVERY) - 1, 1] = loss.item()
 
-                step_loss_count += 1
+                line_loss.pchanged()
 
+                ax_loss.relim()
+                ax_loss.autoscale_view()
                 ax_loss.set_ylim(bottom=0, top=None)
-
-                line_loss.set_xdata(step_loss_x[:step_loss_count])
-                line_loss.set_ydata(step_loss_y[:step_loss_count])
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0:
             model.eval()
@@ -333,7 +332,7 @@ def main():
 
                     ax_pic.imshow(pic.cpu().numpy())
 
-            fig.canvas.flush_events()
+                fig.canvas.flush_events()
 
     if args.plt:
         LOG_PATH.mkdir(exist_ok=True)
