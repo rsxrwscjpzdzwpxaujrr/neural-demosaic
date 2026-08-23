@@ -91,7 +91,7 @@ def downscale(rgb: np.ndarray, factor: int) -> np.ndarray:
     w = rgb.shape[1] - rgb.shape[1] % factor
     size = (w // factor, h // factor)
     planes = [
-        np.asarray(Image.fromarray(rgb[:h, :w, c], mode="F").resize(size, Image.LANCZOS))
+        np.asarray(Image.fromarray(rgb[:h, :w, c], mode="F").resize(size, Image.Resampling.BOX))
         for c in range(3)
     ]
     return np.stack(planes, axis=-1)
