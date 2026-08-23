@@ -101,8 +101,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inputs", nargs="+", type=Path, help="raw files or directories")
     parser.add_argument("-o", "--output", type=Path, default=Path("data/gt"))
-    parser.add_argument("--downscale", type=int, default=2,
-                        help="extra downscale factor after superpixel (default 2)")
+    parser.add_argument("--downscale", type=lambda s: set(int(item) for item in s.split(',')), default=[2,3],
+                        help="comma separated extra downscale factor after superpixel list (default 2,3)")
     args = parser.parse_args()
 
     files = []
@@ -116,17 +116,19 @@ def main():
 
     args.output.mkdir(parents=True, exist_ok=True)
     for path in files:
-        out_path = args.output / f"{path.stem}.npy"
-        if out_path.exists():
-            print(f"skip {path.name} (exists)")
-            continue
         print(f"{path.name}:")
         cfa, period = decode_raw(path)
-        rgb = downscale(superpixel(cfa, period), args.downscale)
-        rgb = np.maximum(rgb, 0.0)
-        np.save(out_path, rgb.astype(np.float16))
-        print(f"  -> {out_path} {rgb.shape[1]}x{rgb.shape[0]}, "
-              f"range [{rgb.min():.3f}, {rgb.max():.3f}]")
+        for factor in args.downscale:
+            out_path = args.output / f"{path.stem}_x{factor}.npy"
+            if out_path.exists():
+                print(f"  skip {out_path} (exists)")
+                continue
+
+            rgb = downscale(superpixel(cfa, period), factor)
+            rgb = np.maximum(rgb, 0.0)
+            np.save(out_path, rgb.astype(np.float16))
+            print(f"  -> {out_path} {rgb.shape[1]}x{rgb.shape[0]}, "
+                  f"range [{rgb.min():.3f}, {rgb.max():.3f}]")
 
 
 if __name__ == "__main__":
