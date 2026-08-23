@@ -20,6 +20,7 @@ print = tqdm.write
 
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 GT_DIR = Path("data/gt")
+VAL_DIR = Path("data/val")
 CKPT_PATH = Path("weights/")
 PATCH = 0
 BATCH = 0
@@ -156,7 +157,8 @@ def main():
     parser.add_argument("--patch", type=int, default=96, help="Training patch size. Default 96.")
     parser.add_argument("--batch", type=int, default=32, help="Training batch size. Default 32.")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate. Default 1e-3.")
-    parser.add_argument("--faststart", action="store_true", help="Skip Markesteijn demosaic at start.")
+    parser.add_argument("--faststart", action="store_true", help="Skip Markesteijn demosaic at start and limit train "
+                                                                 "and val files by 10.")
     args = parser.parse_args()
 
     global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES
@@ -169,11 +171,15 @@ def main():
         torch.tensor(cfa_indices, dtype=torch.int32).to(DEVICE),
     )
 
-    files = sorted(GT_DIR.glob("*.npy"))
-    assert len(files) >= 2, f"need GT files in {GT_DIR}"
-    n_val = max(1, len(files) // 8)
-    train_files, val_files = files[:-n_val], files[-n_val:]
-    print(f"{len(train_files)} train images, val: {[f.name for f in val_files]}")
+    train_files = sorted(GT_DIR.glob("*.npy"))
+    val_files = sorted(VAL_DIR.glob("*.npy"))
+
+    if args.faststart:
+        train_files = train_files[:10]
+        val_files = val_files[:10]
+
+    print(f"{len(train_files)} train images")
+    print(f"{len(val_files)} val images")
 
     loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
                         persistent_workers=True)
