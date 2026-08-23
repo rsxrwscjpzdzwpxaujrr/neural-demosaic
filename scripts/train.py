@@ -39,11 +39,15 @@ class GTPatches(Dataset):
     def __init__(self, files):
         self.images = [np.load(f, mmap_mode="r") for f in files]
 
+        areas = torch.tensor([img.shape[-2] * img.shape[-1] for img in self.images], dtype=torch.float32)
+
+        self.weights = areas / areas.sum()
+
     def __len__(self):
         return ITERS * BATCH
 
     def __getitem__(self, _):
-        img = self.images[torch.randint(len(self.images), ()).item()]
+        img = self.images[torch.multinomial(self.weights, 1).item()]
         h, w, _ = img.shape
         y = torch.randint(h - PATCH + 1, ()).item()
         x = torch.randint(w - PATCH + 1, ()).item()
