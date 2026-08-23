@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
@@ -23,6 +24,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.i
 GT_DIR = Path("data/gt")
 VAL_DIR = Path("data/val")
 CKPT_PATH = Path("weights/")
+LOG_PATH = Path("logs/")
 PATCH = 0
 BATCH = 0
 ITERS = 0
@@ -148,6 +150,43 @@ def preprocess(patch: torch.Tensor):
     return mosaic, patch
 
 
+def init_plt():
+    dpi = plt.rcParams['figure.dpi']
+
+    fig, (ax_pic, ax_loss) = plt.subplots(1, 2, figsize=((3 * 4 * PATCH) / dpi, (SAMPLES_TO_PLOT * PATCH) / dpi),
+                                          width_ratios=(0.25, 0.75))
+    ax_pic.set_position([0, 0, 0.25, 1])
+    ax_pic.axis('off')
+
+    ax_loss.grid(True, axis='x', color='lightgray', linewidth=1)
+    ax_loss.grid(True, axis='y', color='lightblue', linewidth=1)
+    ax_loss.autoscale(enable=True, axis='y')
+
+    ax_loss.set_xlim(left=0, right=ITERS)
+
+    line_loss, = ax_loss.plot([0], color='tab:blue')
+    ax_loss.set_ylabel("Loss", color='blue')
+    line_loss.set_xdata(range(0, ITERS))
+
+    ax_loss.set_xlabel("Iteration")
+    ax_loss.tick_params(axis='y', labelcolor='tab:blue')
+
+    ax_psnr = ax_loss.twinx()
+    ax_psnr.grid(True, axis='y', color='mistyrose', linewidth=1)
+    ax_psnr.autoscale(enable=True, axis='y')
+
+    line_psnr, = ax_psnr.plot([0], color='tab:red', marker='o')
+
+    ax_psnr.set_ylabel("PSNR", color='red')
+    ax_psnr.yaxis.set_major_formatter(ticker.EngFormatter(unit='dB'))
+    ax_psnr.tick_params(axis='y', labelcolor='tab:red')
+
+    plt.ion()
+    plt.show()
+
+    return fig, ax_pic, ax_loss, line_loss, ax_psnr, line_psnr
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--name", type=str, default="packed", help="The name for weight file without format. "
@@ -214,14 +253,15 @@ def main():
     t0 = time.time()
 
     if args.plt:
-        dpi = plt.rcParams['figure.dpi']
+        fig, ax_pic, ax_loss, line_loss, ax_psnr, line_psnr = init_plt()
 
-        fig = plt.figure(figsize=((3 * PATCH) / dpi, (SAMPLES_TO_PLOT * PATCH) / dpi))
-        ax = fig.add_axes([0, 0, 1, 1])
-        ax.axis('off')
+        step_loss_x = np.zeros(ITERS)
+        step_loss_y = np.zeros(ITERS)
+        step_loss_count = 0
 
-        plt.ion()
-        plt.show()
+        step_psnr_x = np.zeros(ITERS)
+        step_psnr_y = np.zeros(ITERS)
+        step_psnr_count = 0
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.25, maxinterval=99999.9, smoothing=0.2)
     for step, gt in pbar:
@@ -242,6 +282,17 @@ def main():
             running = 0.0
             t0 = time.time()
 
+            if args.plt:
+                step_loss_x[step_loss_count] = step
+                step_loss_y[step_loss_count] = loss.item()
+
+                step_loss_count += 1
+
+                ax_loss.set_ylim(bottom=0, top=None)
+
+                line_loss.set_xdata(step_loss_x[:step_loss_count])
+                line_loss.set_ydata(step_loss_y[:step_loss_count])
+
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0:
             model.eval()
             train_psnr = evaluate(model, train_eval)
@@ -257,6 +308,18 @@ def main():
                 f"PSNR train {pretty_psnrs(train_psnr)} (mark {pretty_psnrs(mark_train)}) | "
                 f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}){marker}")
 
+            if args.plt:
+                step_psnr_x[step_psnr_count] = step
+                step_psnr_y[step_psnr_count] = val_psnr[0]
+
+                step_psnr_count += 1
+
+                line_psnr.set_xdata(step_psnr_x[:step_psnr_count])
+                line_psnr.set_ydata(step_psnr_y[:step_psnr_count])
+
+                ax_psnr.relim()
+                ax_psnr.autoscale_view()
+
         if args.plt:
             if step % PLOT_EVERY == 0:
                 with torch.no_grad():
@@ -268,10 +331,13 @@ def main():
 
                     pic = torch.cat(pics, dim=1)
 
-                    plt.imshow(pic.cpu().numpy())
+                    ax_pic.imshow(pic.cpu().numpy())
 
             fig.canvas.flush_events()
 
+    if args.plt:
+        LOG_PATH.mkdir(exist_ok=True)
+        plt.savefig(LOG_PATH / f"{args.name}.png")
 
 if __name__ == "__main__":
     main()
