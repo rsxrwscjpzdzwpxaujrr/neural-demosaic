@@ -104,7 +104,7 @@ def make_eval_pairs(images, size=1080):
 def evaluate(fn, pairs):
     vals = []
 
-    for mo, gt in pairs:
+    for mo, gt in tqdm(pairs, unit='pair', desc='Evaluation', delay=2.0):
         mo_d = mo.to(DEVICE)
         gt_d = gt.to(DEVICE)
 
@@ -121,7 +121,7 @@ def evaluate(fn, pairs):
 def markesteijn_psnr(kernels, pairs):
     pattern = XTRANS_PATTERN.astype(np.uint8)
     vals = []
-    for mo, gt in pairs:
+    for mo, gt in tqdm(pairs, unit='pair', desc='Markesteijn', delay=2.0):
         mosaic = np.pad(mo[0, 0].numpy(), 18, mode="symmetric")
         out = kernels.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
         out = torch.from_numpy(np.ascontiguousarray(out[18:-18, 18:-18])).permute(2, 0, 1)[None]
@@ -253,11 +253,13 @@ def main():
 
     train_eval = make_eval_pairs([np.load(f, mmap_mode="r") for f in train_files])
     val_eval = make_eval_pairs([np.load(f, mmap_mode="r") for f in val_files])
+    print('Evaluating base model...')
     base_train = evaluate(model.baseline, train_eval)
     base_val = evaluate(model.baseline, val_eval)
     print(f"bilinear PSNR:    train {pretty_psnrs(base_train)}, val {pretty_psnrs(base_val)}")
 
     if not args.faststart:
+        print('Evaluating Markesteijn...')
         os.environ.setdefault("PYOPENCL_CTX", "0")
         kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
         mark_train = markesteijn_psnr(kernels, train_eval)
