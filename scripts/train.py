@@ -18,8 +18,6 @@ from src.cfa import XTRANS_PATTERN, get_mosaic_arr
 from src.models import PackedXTransNet
 from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
 
-print = tqdm.write
-
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 GT_DIR = Path("data/gt")
 VAL_DIR = Path("data/val")
@@ -37,6 +35,16 @@ SAMPLES_TO_PLOT = 5
 EXPOSURE_RANGE = (-2.5, 2.5)
 
 YY, XX, CFA_INDICES = None, None, None
+
+LOG_TXT = None
+
+
+def our_write(cls='', *args, **kwargs):
+    tqdm.write(cls, *args, **kwargs)
+
+    if LOG_TXT is not None:
+        __builtins__.print(cls, file=LOG_TXT, flush=True, *args, **kwargs)
+
 
 class GTPatches(Dataset):
     def __init__(self, files):
@@ -204,8 +212,18 @@ def main():
     parser.add_argument("--plt", action="store_true", help="Show result pics during training.")
     args = parser.parse_args()
 
-    global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES
+    global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES, LOG_TXT
     ITERS, PATCH, BATCH, LR = args.iters, args.patch, args.batch, args.lr
+
+    LOG_PATH.mkdir(exist_ok=True)
+    LOG_TXT = open(LOG_PATH / f"{args.name}.txt", "w", encoding="utf-8")
+
+    print = our_write
+
+    for key, value in vars(args).items():
+        print(f"{key} {value}")
+
+    print()
 
     yy, xx, cfa_indices = get_mosaic_arr((PATCH, PATCH), XTRANS_PATTERN)
     YY, XX, CFA_INDICES = (
@@ -334,8 +352,9 @@ def main():
 
                 fig.canvas.flush_events()
 
+    LOG_TXT.close()
+
     if args.plt:
-        LOG_PATH.mkdir(exist_ok=True)
         plt.savefig(LOG_PATH / f"{args.name}.svg")
 
 if __name__ == "__main__":
