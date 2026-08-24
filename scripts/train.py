@@ -260,8 +260,8 @@ def main():
 
         loss_path = line_loss.get_path()
 
-        step_psnr_x = np.zeros((ITERS - int(ITERS * args.val_since)) // VAL_EVERY)
-        step_psnr_y = np.zeros((ITERS - int(ITERS * args.val_since)) // VAL_EVERY)
+        step_psnr_x = np.arange(int(ITERS * args.val_since), ITERS + 1, VAL_EVERY)
+        step_psnr_y = np.zeros(len(step_psnr_x))
         step_psnr_count = 0
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.25, maxinterval=99999.9, smoothing=0.2)
