@@ -275,8 +275,15 @@ def main():
     running = 0.0
     t0 = time.time()
 
+    max_loss = 0.0
+
     if args.plt:
         fig, ax_pic, ax_loss, line_loss, ax_psnr, line_psnr = init_plt()
+
+        ax_psnr.axhline(y=base_val[0], color='#ffb000a0', linewidth=1, label="val bili PSNR")
+        ax_psnr.axhline(y=mark_val[0], color='#00ff00a0', linewidth=1, label="val mark PSNR")
+
+        ax_psnr.legend()
 
         line_loss.set_xdata(np.arange(LOG_EVERY, ITERS + LOG_EVERY, LOG_EVERY))
         line_loss.set_ydata(np.zeros(ITERS // LOG_EVERY))
@@ -286,6 +293,8 @@ def main():
         step_psnr_x = np.arange(int(ITERS * args.val_since), ITERS + 1, VAL_EVERY)
         step_psnr_y = np.zeros(len(step_psnr_x))
         step_psnr_count = 0
+
+        fig.canvas.flush_events()
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2)
     for step, gt in pbar:
@@ -301,19 +310,17 @@ def main():
         running += loss.item()
 
         if step % LOG_EVERY == 0:
-            print(f"step {step}/{ITERS}  loss {running / LOG_EVERY:.5f}  "
+            avg_loss = running / LOG_EVERY
+            print(f"step {step}/{ITERS}  loss {avg_loss:.5f}  "
                   f"lr {sched.get_last_lr()[0]:.2e}  {LOG_EVERY * BATCH / (time.time() - t0):.0f} img/s")
             running = 0.0
             t0 = time.time()
 
+            if avg_loss > max_loss:
+                max_loss = avg_loss
+
             if args.plt:
-                loss_path.vertices[(step // LOG_EVERY) - 1, 1] = loss.item()
-
-                line_loss.pchanged()
-
-                ax_loss.relim()
-                ax_loss.autoscale_view()
-                ax_loss.set_ylim(bottom=0, top=None)
+                loss_path.vertices[(step // LOG_EVERY) - 1, 1] = avg_loss
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0:
             model.eval()
@@ -345,6 +352,9 @@ def main():
         if args.plt:
             if step % PLOT_EVERY == 0:
                 with torch.no_grad():
+                    line_loss.pchanged()
+                    ax_loss.set_ylim(bottom=0, top=max_loss)
+
                     out_a = gt[0:SAMPLES_TO_PLOT, ...]
                     out_b = out[0:SAMPLES_TO_PLOT, ...]
 
