@@ -285,7 +285,7 @@ def main():
         step_psnr_y = np.zeros(len(step_psnr_x))
         step_psnr_count = 0
 
-    pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.25, maxinterval=99999.9, smoothing=0.2)
+    pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2)
     for step, gt in pbar:
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
