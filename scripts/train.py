@@ -159,33 +159,36 @@ def preprocess(patch: torch.Tensor):
 
 
 def init_plt():
+    plt.style.use('dark_background')
+
     dpi = plt.rcParams['figure.dpi']
 
     fig, (ax_pic, ax_loss) = plt.subplots(1, 2, figsize=((3 * 4 * PATCH) / dpi, (SAMPLES_TO_PLOT * PATCH) / dpi),
                                           width_ratios=(0.25, 0.75))
+    # fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
     ax_pic.set_position([0, 0, 0.25, 1])
     ax_pic.axis('off')
 
-    ax_loss.grid(True, axis='x', color='lightgray', linewidth=1)
-    ax_loss.grid(True, axis='y', color='lightblue', linewidth=1)
+    ax_loss.grid(True, axis='x', color='#ffffff30', linewidth=1)
+    ax_loss.grid(True, axis='y', color='#0000ff70', linewidth=1)
     ax_loss.autoscale(enable=True, axis='y')
 
     ax_loss.set_xlim(left=0, right=ITERS)
 
     line_loss, = ax_loss.plot([0], color='tab:blue')
-    ax_loss.set_ylabel("Loss", color='blue')
+    ax_loss.set_ylabel("Loss", color='tab:blue')
     line_loss.set_xdata(range(0, ITERS))
 
     ax_loss.set_xlabel("Iteration")
     ax_loss.tick_params(axis='y', labelcolor='tab:blue')
 
     ax_psnr = ax_loss.twinx()
-    ax_psnr.grid(True, axis='y', color='mistyrose', linewidth=1)
+    ax_psnr.grid(True, axis='y', color='#ff000040', linewidth=1)
     ax_psnr.autoscale(enable=True, axis='y')
 
     line_psnr, = ax_psnr.plot([], color='tab:red', marker='o')
 
-    ax_psnr.set_ylabel("PSNR", color='red')
+    ax_psnr.set_ylabel("PSNR", color='tab:red')
     ax_psnr.yaxis.set_major_formatter(ticker.EngFormatter(unit='dB'))
     ax_psnr.tick_params(axis='y', labelcolor='tab:red')
 
