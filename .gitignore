@@ -1,3 +1,6 @@
+weights/test*.pt
+logs/test*
+
 # Python-generated files
 __pycache__/
 *.py[oc]
