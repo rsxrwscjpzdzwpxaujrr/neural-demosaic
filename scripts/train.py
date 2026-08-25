@@ -136,6 +136,7 @@ def markesteijn_psnr(kernels, pairs):
 def pretty_psnrs(psnrs: tuple) -> str:
     return f"{psnrs[0]:.2f} ({', '.join(f'{x:.1f}' for x in psnrs[1:])})"
 
+
 @torch.no_grad()
 def preprocess(patch: torch.Tensor):
     patch = patch.permute(0, 3, 1, 2)
@@ -318,8 +319,7 @@ def main():
             running = 0.0
             t0 = time.time()
 
-            if avg_loss > max_loss:
-                max_loss = avg_loss
+            max_loss = max(max_loss, avg_loss)
 
             if args.plt:
                 loss_path.vertices[(step // LOG_EVERY) - 1, 1] = avg_loss
@@ -375,6 +375,7 @@ def main():
 
     if args.plt:
         plt.savefig(LOG_PATH / f"{args.name}.svg")
+
 
 if __name__ == "__main__":
     main()
