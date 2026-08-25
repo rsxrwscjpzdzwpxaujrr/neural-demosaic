@@ -369,6 +369,8 @@ def main():
 
                 fig.canvas.flush_events()
 
+                plt.savefig(LOG_PATH / f"{args.name}.svg")
+
     LOG_TXT.close()
 
     if args.plt:
