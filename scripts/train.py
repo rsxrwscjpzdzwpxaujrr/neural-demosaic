@@ -161,7 +161,9 @@ def preprocess(patch: torch.Tensor):
 def init_plt():
     plt.style.use('dark_background')
 
-    dpi = plt.rcParams['figure.dpi']
+    dpi = 96.0
+    plt.rcParams['figure.dpi'] = dpi
+    plt.rcParams['savefig.dpi'] = dpi
 
     fig, (ax_pic, ax_loss) = plt.subplots(1, 2, figsize=((3 * 4 * PATCH) / dpi, (SAMPLES_TO_PLOT * PATCH) / dpi),
                                           width_ratios=(0.25, 0.75))
