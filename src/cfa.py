@@ -10,6 +10,8 @@ XTRANS_PATTERN = np.array([
     [1, 1, 0, 1, 1, 2],
 ], dtype=np.int32)
 
+XTRANS_PATTERN = np.ascontiguousarray(np.roll(XTRANS_PATTERN, (1, 2), axis=(0, 1)))
+
 BAYER_PATTERN = np.array([
     [0, 1],
     [1, 2]

@@ -17,7 +17,6 @@ from src.cfa import XTRANS_PATTERN, BAYER_PATTERN
 
 RAW_EXTENSIONS = {".raf", ".dng", ".nef", ".cr2", ".cr3", ".arw", ".orf", ".rw2"}
 
-XTRANS_PATTERN = np.roll(XTRANS_PATTERN, (1, 2), axis=(0, 1))
 
 def decode_raw(path: Path) -> tuple[np.ndarray, int]:
     """Decode to WB'd linear CFA, cropped so the canonical pattern starts at (0, 0).
