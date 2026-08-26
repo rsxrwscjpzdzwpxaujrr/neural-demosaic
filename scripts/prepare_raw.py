@@ -117,7 +117,13 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     for path in files:
         print(f"{path.name}:")
-        cfa, period = decode_raw(path)
+
+        try:
+            cfa, period = decode_raw(path)
+        except Exception as e:
+            print(f"  error occured during decoding {e}")
+            continue
+
         for factor in args.downscale:
             out_path = args.output / f"{path.stem}_x{factor}.npy"
             if out_path.exists():
