@@ -41,6 +41,13 @@ def run_tiled(model, cfa: np.ndarray, dy: int, dx: int) -> np.ndarray:
     return out[:, dy:dy + h, dx:dx + w].numpy()
 
 
+def get_model_width_depth(model_dict) -> tuple[int, int]:
+    width = model_dict['stem.weight'].shape[0]
+    # magic
+    depth = (len(model_dict) - 6) // 4
+    return width, depth
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--full-prec", type="store_true", help="Run inference in float32 mode instead of float16.")
@@ -51,11 +58,7 @@ if __name__ == "__main__":
 
     for model_file in model_files:
         model_dict = torch.load(model_file, map_location=DEVICE)
-
-        width = model_dict['stem.weight'].shape[0]
-        # magic
-        depth = (len(model_dict) - 6) // 4
-
+        width, depth = get_model_width_depth(model_dict)
         model = PackedXTransNet(XTRANS_PATTERN, width=width, depth=depth).to(DEVICE)
         model.load_state_dict(model_dict)
         if not args.full_prec:
