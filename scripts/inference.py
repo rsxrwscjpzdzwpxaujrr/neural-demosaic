@@ -1,3 +1,4 @@
+import argparse
 import sys
 import time
 from pathlib import Path
@@ -41,6 +42,10 @@ def run_tiled(model, cfa: np.ndarray, dy: int, dx: int) -> np.ndarray:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--full-prec", type="store_true", help="Run inference in float32 mode instead of float16.")
+    args = parser.parse_args()
+
     model_files = sorted(CKPT_PATH.glob("*"))
     raf_files = sorted(RAF_PATH.glob("*"))
 
@@ -53,6 +58,8 @@ if __name__ == "__main__":
 
         model = PackedXTransNet(XTRANS_PATTERN, width=width, depth=depth).to(DEVICE)
         model.load_state_dict(model_dict)
+        if not args.full_prec:
+            model.half()
         model.eval()
 
         for raf_file in raf_files:
