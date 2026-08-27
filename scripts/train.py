@@ -62,9 +62,9 @@ class GTPatches(Dataset):
         h, w, _ = img.shape
         y = torch.randint(h - PATCH + 1, ()).item()
         x = torch.randint(w - PATCH + 1, ()).item()
-        patch = img[y:y + PATCH, x:x + PATCH]
+        patch = torch.tensor(img[y:y + PATCH, x:x + PATCH])
 
-        return torch.tensor(patch)
+        return patch
 
 
 def gamma(x):
@@ -154,7 +154,7 @@ def preprocess(patch: torch.Tensor):
 
     patch = patch.to(dtype=torch.float32)
 
-    mosaic = patch[:, CFA_INDICES, YY, XX][:, None]
+    mosaic = patch[:, CFA_INDICES, YY, XX, None]
 
     return mosaic, patch
 
@@ -180,7 +180,7 @@ def init_plt():
 
     line_loss, = ax_loss.plot([0], color='tab:blue')
     ax_loss.set_ylabel("Loss", color='tab:blue')
-    line_loss.set_xdata(range(0, ITERS))
+    line_loss.set_xdata(range(ITERS))
 
     ax_loss.set_xlabel("Iteration")
     ax_loss.tick_params(axis='y', labelcolor='tab:blue')
@@ -274,7 +274,7 @@ def main():
     CKPT_PATH.mkdir(exist_ok=True)
     ckpt_file = CKPT_PATH / f"{args.name}.pt"
 
-    best_psnr = tuple((0.0, float('-inf')))
+    best_psnr = 0.0, float('-inf')
     running = 0.0
     t0 = time.time()
 
@@ -351,21 +351,20 @@ def main():
                 ax_psnr.relim()
                 ax_psnr.autoscale_view()
 
-        if args.plt:
-            if step % PLOT_EVERY == 0:
-                with torch.no_grad():
-                    line_loss.pchanged()
-                    ax_loss.set_ylim(bottom=0, top=max_loss)
+        if args.plt and step % PLOT_EVERY == 0:
+            with torch.no_grad():
+                line_loss.pchanged()
+                ax_loss.set_ylim(bottom=0, top=max_loss)
 
-                    out_a = gt[0:SAMPLES_TO_PLOT, ...]
-                    out_b = out[0:SAMPLES_TO_PLOT, ...]
+                out_a = gt[0:SAMPLES_TO_PLOT, ...]
+                out_b = out[0:SAMPLES_TO_PLOT, ...]
 
-                    pics = [gamma(out_a), gamma(out_b), (((out_a - out_b) * 10.0) + 0.5)]
-                    pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
+                pics = [gamma(out_a), gamma(out_b), (((out_a - out_b) * 10.0) + 0.5)]
+                pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
 
-                    pic = torch.cat(pics, dim=1)
+                pic = torch.cat(pics, dim=1)
 
-                    ax_pic.imshow(pic.cpu().numpy())
+                ax_pic.imshow(pic.cpu().numpy())
 
                 fig.canvas.flush_events()
 
