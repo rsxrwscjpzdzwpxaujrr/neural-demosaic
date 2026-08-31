@@ -35,7 +35,8 @@ def run_tiled(model, cfa: np.ndarray, dy: int, dx: int) -> np.ndarray:
     out = torch.zeros(3, gh, gw)
     for y in range(0, gh, stride):
         for x in range(0, gw, stride):
-            tile = torch.from_numpy(big[y:y + TILE, x:x + TILE])[None, None].to(DEVICE)
+            tile = torch.from_numpy(big[y:y + TILE, x:x + TILE])[None, None].to(DEVICE,
+                                                                                dtype=next(model.parameters()).dtype)
             res = model(tile)[0, :, MARGIN:-MARGIN, MARGIN:-MARGIN]
             out[:, y:y + stride, x:x + stride] = res.cpu()
     return out[:, dy:dy + h, dx:dx + w].numpy()
@@ -50,7 +51,7 @@ def get_model_width_depth(model_dict) -> tuple[int, int]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--full-prec", type="store_true", help="Run inference in float32 mode instead of float16.")
+    parser.add_argument("--full-prec", action="store_true", help="Run inference in float32 mode instead of float16.")
     args = parser.parse_args()
 
     model_files = sorted(CKPT_PATH.glob("*"))

@@ -154,7 +154,7 @@ def preprocess(patch: torch.Tensor):
 
     patch = patch.to(dtype=torch.float32)
 
-    mosaic = patch[:, CFA_INDICES, YY, XX, None]
+    mosaic = patch[:, None, CFA_INDICES, YY, XX]
 
     return mosaic, patch
 
