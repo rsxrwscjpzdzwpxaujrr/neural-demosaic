@@ -8,13 +8,18 @@ import argparse
 import sys
 from pathlib import Path
 
+import torch
 import numpy as np
 import rawler_py
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.cfa import XTRANS_PATTERN, BAYER_PATTERN
+from scripts.inference import get_model_width_depth, run_tiled
+from src.models import PackedXTransNet
 
+DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+CKPT_PATH = Path("weights/")
 RAW_EXTENSIONS = {".raf", ".dng", ".nef", ".cr2", ".cr3", ".arw", ".orf", ".rw2"}
 
 
@@ -103,7 +108,11 @@ def main():
     parser.add_argument("-o", "--output", type=Path, default=Path("data/gt"))
     parser.add_argument("--downscale", type=lambda s: set(int(item) for item in s.split(',')), default=[2,3],
                         help="comma separated extra downscale factor after superpixel list (default 2,3)")
+    parser.add_argument("--infer-with", type=str, default=None,
+                        help="Name of the weights which are going to be used for inference, superpixel will be used if not set")
     args = parser.parse_args()
+
+    inference = args.infer_with is not None
 
     files = []
     for inp in args.inputs:
@@ -113,6 +122,15 @@ def main():
             files.append(inp)
     if not files:
         sys.exit("no raw files found")
+
+    if inference:
+        model_file = CKPT_PATH / (args.infer_with + '.pt')
+        model_dict = torch.load(model_file, map_location=DEVICE)
+        width, depth = get_model_width_depth(model_dict)
+        model = PackedXTransNet(XTRANS_PATTERN, width=width, depth=depth).to(DEVICE)
+        model.load_state_dict(model_dict)
+        model.half()
+        model.eval()
 
     args.output.mkdir(parents=True, exist_ok=True)
     for path in files:
@@ -124,13 +142,25 @@ def main():
             print(f"  error occured during decoding {e}")
             continue
 
+        pre_rgb = None
+
         for factor in args.downscale:
             out_path = args.output / f"{path.stem}_x{factor}.npy"
             if out_path.exists():
                 print(f"  skip {out_path} (exists)")
                 continue
 
-            rgb = downscale(superpixel(cfa, period), factor)
+            if inference and period == 6:
+                factor = factor * 2
+
+            if pre_rgb is None:
+                if inference and period == 6:
+                    print(f"  Running inference on {path.stem}...")
+                    pre_rgb = np.moveaxis(run_tiled(model, cfa, 0, 0), 0, -1)
+                else:
+                    pre_rgb = superpixel(cfa, period)
+
+            rgb = downscale(pre_rgb, factor)
             rgb = np.maximum(rgb, 0.0)
             np.save(out_path, rgb.astype(np.float16))
             print(f"  -> {out_path} {rgb.shape[1]}x{rgb.shape[0]}, "
