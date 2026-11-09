@@ -33,6 +33,7 @@ PLOT_EVERY = 500
 SAMPLES_TO_PLOT = 5
 
 EXPOSURE_RANGE = (-2.5, 2.5)
+ISO_GAIN_RANGE = (-1.0, 7.0)
 
 YY, XX, CFA_INDICES = None, None, None
 
@@ -153,6 +154,21 @@ def preprocess(patch: torch.Tensor):
     patch = patch * (2 ** exposure)
 
     patch = patch.to(dtype=torch.float32)
+
+    k_gain = 2  # 2 e-/DN
+    iso_gain = 2 ** (
+        torch.rand((patch.shape[0], 1, 1, 1), device=DEVICE) *
+        (ISO_GAIN_RANGE[1] - ISO_GAIN_RANGE[0]) + ISO_GAIN_RANGE[0]
+    )
+    maxval = 16383.0
+    read_noise_amount_dn = 1.7
+
+    electrons = (torch.clamp(patch, min=0) / iso_gain) * maxval * k_gain
+    shot_noise = (torch.poisson(electrons)) * (iso_gain / (maxval * k_gain))
+
+    read_noise = torch.randn_like(patch) * (read_noise_amount_dn / maxval) * iso_gain
+
+    patch = patch + shot_noise + read_noise
 
     mosaic = patch[:, None, CFA_INDICES, YY, XX]
 
