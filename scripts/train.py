@@ -298,6 +298,11 @@ def main():
 
         opt.zero_grad(set_to_none=True)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            parameters=model.parameters(),
+            max_norm=0.667,
+            norm_type=2.0,
+        )
         opt.step()
         sched.step()
         running += loss.item()
