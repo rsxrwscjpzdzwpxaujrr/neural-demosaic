@@ -32,6 +32,10 @@ VAL_EVERY = 1000
 PLOT_EVERY = 500
 SAMPLES_TO_PLOT = 5
 
+PLOT_MAX_LOSS = 0.0333
+PLOT_HEIGHT = 512
+ITERS_PER_PIXEL = 50
+
 EXPOSURE_RANGE = (-2.5, 2.5)
 ISO_GAIN_RANGE = (-1.0, 7.0)
 
@@ -187,16 +191,15 @@ def init_plt():
     # fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
     ax_pic.set_position([0, 0, 0.25, 1])
     ax_pic.axis('off')
+    ax_pic_art = ax_pic.imshow(np.array([[[0, 0, 0], [255, 255, 255]]], dtype=np.uint8), aspect='auto')
 
     ax_loss.grid(True, axis='x', color='#ffffff30', linewidth=1)
     ax_loss.grid(True, axis='y', color='#0000ff70', linewidth=1)
     ax_loss.autoscale(enable=True, axis='y')
 
     ax_loss.set_xlim(left=0, right=ITERS)
-
-    line_loss, = ax_loss.plot([0], color='tab:blue')
+    ax_loss.set_ylim(bottom=0, top=PLOT_MAX_LOSS)
     ax_loss.set_ylabel("Loss", color='tab:blue')
-    line_loss.set_xdata(range(ITERS))
 
     ax_loss.set_xlabel("Iteration")
     ax_loss.tick_params(axis='y', labelcolor='tab:blue')
@@ -214,7 +217,9 @@ def init_plt():
     plt.ion()
     plt.show()
 
-    return fig, ax_pic, ax_loss, line_loss, ax_psnr, line_psnr
+    ax_loss_art = ax_loss.imshow(np.array([[0, 255]], dtype=np.uint8), extent=[0, ITERS, 0, PLOT_MAX_LOSS], aspect='auto', zorder=-1, alpha=1)
+
+    return fig, ax_pic_art, ax_loss, ax_loss_art, ax_psnr, line_psnr
 
 
 def main():
@@ -292,22 +297,21 @@ def main():
 
     best_psnr = 0.0, float('-inf')
     running = 0.0
+    running_graph = 0.0
+    max_graph = 0.0
     t0 = time.time()
 
     max_loss = 0.0
 
+    loss_graph = np.zeros((PLOT_HEIGHT, ITERS // ITERS_PER_PIXEL), dtype=np.uint8)
+
     if args.plt:
-        fig, ax_pic, ax_loss, line_loss, ax_psnr, line_psnr = init_plt()
+        fig, ax_pic_art, ax_loss, loss_art, ax_psnr, line_psnr = init_plt()
 
         ax_psnr.axhline(y=base_val[0], color='#ffb000a0', linewidth=1, label="val bili PSNR")
         ax_psnr.axhline(y=mark_val[0], color='#00ff00a0', linewidth=1, label="val mark PSNR")
 
         ax_psnr.legend()
-
-        line_loss.set_xdata(np.arange(LOG_EVERY, ITERS + LOG_EVERY, LOG_EVERY))
-        line_loss.set_ydata(np.zeros(ITERS // LOG_EVERY))
-
-        loss_path = line_loss.get_path()
 
         step_psnr_x = np.arange(int(ITERS * args.val_since), ITERS + 1, VAL_EVERY)
         step_psnr_y = np.zeros(len(step_psnr_x))
@@ -327,6 +331,24 @@ def main():
         opt.step()
         sched.step()
         running += loss.item()
+        running_graph += loss.item()
+
+        if loss.item() > max_graph:
+            max_graph = loss.item()
+
+        if step % ITERS_PER_PIXEL == 0:
+            avg_loss = running_graph / ITERS_PER_PIXEL
+
+            max_id = max_graph * (PLOT_HEIGHT / PLOT_MAX_LOSS)
+            avg_id = avg_loss * (PLOT_HEIGHT / PLOT_MAX_LOSS)
+
+            col = step // ITERS_PER_PIXEL
+
+            loss_graph[-max(int(max_id), 0):, col] = 128
+            loss_graph[-max(int(avg_id), 0):, col] = 255
+
+            running_graph = 0.0
+            max_graph = 0.0
 
         if step % LOG_EVERY == 0:
             avg_loss = running / LOG_EVERY
@@ -337,8 +359,6 @@ def main():
 
             max_loss = max(max_loss, avg_loss)
 
-            if args.plt:
-                loss_path.vertices[(step // LOG_EVERY) - 1, 1] = avg_loss
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0:
             model.eval()
@@ -369,18 +389,20 @@ def main():
 
         if args.plt and step % PLOT_EVERY == 0:
             with torch.no_grad():
-                line_loss.pchanged()
-                ax_loss.set_ylim(bottom=0, top=max_loss)
-
                 out_a = gt[0:SAMPLES_TO_PLOT, ...]
                 out_b = out[0:SAMPLES_TO_PLOT, ...]
 
-                pics = [gamma(out_a), gamma(out_b), (((out_a - out_b) * 10.0) + 0.5)]
+                pics = [
+                    gamma(out_a),
+                    gamma(out_b),
+                    (((out_a - out_b) * 10.0) + 0.5)
+                ]
                 pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
 
                 pic = torch.cat(pics, dim=1)
 
-                ax_pic.imshow(pic.cpu().numpy())
+                loss_art.set_data(loss_graph)
+                ax_pic_art.set_data(pic.cpu().numpy())
 
                 fig.canvas.flush_events()
 
