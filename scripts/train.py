@@ -27,6 +27,7 @@ PATCH = 0
 BATCH = 0
 ITERS = 0
 LR = 0.0
+WARMUP_ITERS = 250
 LOG_EVERY = 250
 VAL_EVERY = 1000
 PLOT_EVERY = 500
@@ -273,7 +274,12 @@ def main():
                         persistent_workers=True)
     model = PackedXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, ITERS)
+    sched = torch.optim.lr_scheduler.SequentialLR(
+        opt, schedulers=[
+            torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.01, end_factor=1.0, total_iters=WARMUP_ITERS),
+            torch.optim.lr_scheduler.CosineAnnealingLR(opt, ITERS - WARMUP_ITERS)
+        ], milestones=[WARMUP_ITERS]
+    )
 
     train_eval = make_eval_pairs([np.load(f, mmap_mode="r") for f in train_files])
     val_eval = make_eval_pairs([np.load(f, mmap_mode="r") for f in val_files])
