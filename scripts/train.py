@@ -7,8 +7,6 @@ import argparse
 import numpy as np
 import torch
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
@@ -17,6 +15,7 @@ from src.utils import lin_rgb_to_luv
 from src.cfa import XTRANS_PATTERN, get_mosaic_arr
 from src.models import PackedXTransNet
 from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
+from src.plot import Plot
 
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 GT_DIR = Path("data/gt")
@@ -30,12 +29,7 @@ LR = 0.0
 WARMUP_ITERS = 250
 LOG_EVERY = 250
 VAL_EVERY = 1000
-PLOT_EVERY = 500
-SAMPLES_TO_PLOT = 5
 
-PLOT_MAX_LOSS = 0.0333
-PLOT_HEIGHT = 512
-ITERS_PER_PIXEL = 50
 
 EXPOSURE_RANGE = (-2.5, 2.5)
 ISO_GAIN_RANGE = (-1.0, 7.0)
@@ -180,49 +174,6 @@ def preprocess(patch: torch.Tensor):
     return mosaic, patch
 
 
-def init_plt():
-    plt.style.use('dark_background')
-
-    dpi = 96.0
-    plt.rcParams['figure.dpi'] = dpi
-    plt.rcParams['savefig.dpi'] = dpi
-
-    fig, (ax_pic, ax_loss) = plt.subplots(1, 2, figsize=((3 * 4 * PATCH) / dpi, (SAMPLES_TO_PLOT * PATCH) / dpi),
-                                          width_ratios=(0.25, 0.75))
-    # fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
-    ax_pic.set_position([0, 0, 0.25, 1])
-    ax_pic.axis('off')
-    ax_pic_art = ax_pic.imshow(np.array([[[0, 0, 0], [255, 255, 255]]], dtype=np.uint8), aspect='auto')
-
-    ax_loss.grid(True, axis='x', color='#ffffff30', linewidth=1)
-    ax_loss.grid(True, axis='y', color='#0000ff70', linewidth=1)
-    ax_loss.autoscale(enable=True, axis='y')
-
-    ax_loss.set_xlim(left=0, right=ITERS)
-    ax_loss.set_ylim(bottom=0, top=PLOT_MAX_LOSS)
-    ax_loss.set_ylabel("Loss", color='tab:blue')
-
-    ax_loss.set_xlabel("Iteration")
-    ax_loss.tick_params(axis='y', labelcolor='tab:blue')
-
-    ax_psnr = ax_loss.twinx()
-    ax_psnr.grid(True, axis='y', color='#ff000040', linewidth=1)
-    ax_psnr.autoscale(enable=True, axis='y')
-
-    line_psnr, = ax_psnr.plot([], color='tab:red', marker='o')
-
-    ax_psnr.set_ylabel("PSNR", color='tab:red')
-    ax_psnr.yaxis.set_major_formatter(ticker.EngFormatter(unit='dB'))
-    ax_psnr.tick_params(axis='y', labelcolor='tab:red')
-
-    plt.ion()
-    plt.show()
-
-    ax_loss_art = ax_loss.imshow(np.array([[0, 255]], dtype=np.uint8), extent=[0, ITERS, 0, PLOT_MAX_LOSS], aspect='auto', zorder=-1, alpha=1)
-
-    return fig, ax_pic_art, ax_loss, ax_loss_art, ax_psnr, line_psnr
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--name", type=str, default="packed", help="The name for weight file without format. "
@@ -288,6 +239,8 @@ def main():
     base_val = evaluate(model.baseline, val_eval)
     print(f"bilinear PSNR:    train {pretty_psnrs(base_train)}, val {pretty_psnrs(base_val)}")
 
+    mark_val = None
+
     if not args.faststart:
         print('Evaluating Markesteijn...')
         os.environ.setdefault("PYOPENCL_CTX", "0")
@@ -303,27 +256,16 @@ def main():
 
     best_psnr = 0.0, float('-inf')
     running = 0.0
-    running_graph = 0.0
-    max_graph = 0.0
     t0 = time.time()
-
     max_loss = 0.0
 
-    loss_graph = np.zeros((PLOT_HEIGHT, ITERS // ITERS_PER_PIXEL), dtype=np.uint8)
-
     if args.plt:
-        fig, ax_pic_art, ax_loss, loss_art, ax_psnr, line_psnr = init_plt()
-
-        ax_psnr.axhline(y=base_val[0], color='#ffb000a0', linewidth=1, label="val bili PSNR")
-        ax_psnr.axhline(y=mark_val[0], color='#00ff00a0', linewidth=1, label="val mark PSNR")
-
-        ax_psnr.legend()
-
-        step_psnr_x = np.arange(int(ITERS * args.val_since), ITERS + 1, VAL_EVERY)
-        step_psnr_y = np.zeros(len(step_psnr_x))
-        step_psnr_count = 0
-
-        fig.canvas.flush_events()
+        plot = Plot(
+            ITERS, PATCH,
+            LOG_PATH, args.name,
+            args.val_since, VAL_EVERY,
+            base_val[0], None if mark_val is None else mark_val[0]
+        )
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2, position=0)
     statusbar = tqdm(total=0, bar_format="{desc}", position=1)
@@ -338,24 +280,6 @@ def main():
         opt.step()
         sched.step()
         running += loss.item()
-        running_graph += loss.item()
-
-        if loss.item() > max_graph:
-            max_graph = loss.item()
-
-        if step % ITERS_PER_PIXEL == 0:
-            avg_loss = running_graph / ITERS_PER_PIXEL
-
-            max_id = max_graph * (PLOT_HEIGHT / PLOT_MAX_LOSS)
-            avg_id = avg_loss * (PLOT_HEIGHT / PLOT_MAX_LOSS)
-
-            col = step // ITERS_PER_PIXEL
-
-            loss_graph[-max(int(max_id), 0):, col] = 128
-            loss_graph[-max(int(avg_id), 0):, col] = 255
-
-            running_graph = 0.0
-            max_graph = 0.0
 
         if step % LOG_EVERY == 0:
             avg_loss = running / LOG_EVERY
@@ -366,6 +290,7 @@ def main():
 
             max_loss = max(max_loss, avg_loss)
 
+        val_psnr = None
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0:
             model.eval()
@@ -382,22 +307,12 @@ def main():
                 f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}){marker}")
             statusbar.set_description_str(f"Last PSNR: {val_psnr[0]:.2f}dB, Best PSNR: {best_psnr[0]:.2f}dB")
 
-            if args.plt:
-                step_psnr_x[step_psnr_count] = step
-                step_psnr_y[step_psnr_count] = val_psnr[0]
+        pic = None
 
-                step_psnr_count += 1
-
-                line_psnr.set_xdata(step_psnr_x[:step_psnr_count])
-                line_psnr.set_ydata(step_psnr_y[:step_psnr_count])
-
-                ax_psnr.relim()
-                ax_psnr.autoscale_view()
-
-        if args.plt and step % PLOT_EVERY == 0:
+        if plot is not None and step % Plot.SAMPLES_EVERY == 0:
             with torch.no_grad():
-                out_a = gt[0:SAMPLES_TO_PLOT, ...]
-                out_b = out[0:SAMPLES_TO_PLOT, ...]
+                out_a = gt[0:Plot.PIC_SAMPLES, ...]
+                out_b = out[0:Plot.PIC_SAMPLES, ...]
 
                 pics = [
                     gamma(out_a),
@@ -406,19 +321,15 @@ def main():
                 ]
                 pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
 
-                pic = torch.cat(pics, dim=1)
+                pic = torch.cat(pics, dim=1).cpu().numpy()
 
-                loss_art.set_data(loss_graph)
-                ax_pic_art.set_data(pic.cpu().numpy())
-
-                fig.canvas.flush_events()
-
-                plt.savefig(LOG_PATH / f"{args.name}.svg")
+        if plot is not None:
+            plot.tick(step, loss.item(), None if val_psnr is None else val_psnr[0], pic)
 
     LOG_TXT.close()
 
-    if args.plt:
-        plt.savefig(LOG_PATH / f"{args.name}.svg")
+    if plot is not None:
+        plot.save_file()
 
 
 if __name__ == "__main__":
