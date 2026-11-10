@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from pathlib import Path
 
@@ -6,11 +7,12 @@ import matplotlib.ticker as ticker
 
 
 class Plot:
-    DRAW_EVERY = 5
-    MAX_LOSS = 0.05
+    MAX_LOSS = 0.04
     SAMPLES_EVERY = 250
-    PIC_SAMPLES = 5
+    PIC_SAMPLES = 4
+    PIC_COLUMNS = 3
     ITERS_PER_PIXEL = 50
+    TARGET_FLUSH_DT = 0.03
 
     def __init__(self, iters: int, patch: int, file_path: Path, filename, val_since: float, val_every: int, base_val, mark_val):
         self.iters = iters
@@ -19,6 +21,7 @@ class Plot:
         self.val_since = val_since
         self.val_every = val_every
         self.filename = filename
+        self.last_flush_time = 0.0
 
         assert self.iters % Plot.ITERS_PER_PIXEL == 0, "Iteration amount should be divisible by ITERS_PER_PIXEL"
 
@@ -30,11 +33,19 @@ class Plot:
 
         plt.ion()
 
-        self.fig, (self.ax_pic, self.ax_loss) = plt.subplots(1, 2, figsize=((3 * 4 * self.patch) / dpi, (Plot.PIC_SAMPLES * self.patch) / dpi),
-                                            width_ratios=(0.25, 0.75))
-        # fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
-        self.ax_pic.set_position([0, 0, 0.25, 1])
+        self.pic_width = (self.patch * Plot.PIC_COLUMNS)
+        self.plot_width = self.pic_width * 5
+        self.full_width = self.pic_width + self.plot_width
+
+        self.fig, (self.ax_pic, self.ax_loss) = plt.subplots(
+            1, 2,
+            figsize=(self.full_width / dpi, (self.patch * Plot.PIC_SAMPLES) / dpi),
+            width_ratios=(self.pic_width / self.full_width, 1 - self.pic_width / self.full_width),
+            gridspec_kw={'wspace': 0, 'hspace': 0}
+        )
+
         self.ax_pic.axis('off')
+        self.ax_pic.set_position([0, 0, self.pic_width / self.full_width, 1])
         self.ax_pic_art = self.ax_pic.imshow(np.array([[[0, 0, 0], [255, 255, 255]]], dtype=np.uint8), aspect='auto')
         self.ax_loss.grid(True, axis='x', color='#ffffff30', linewidth=1)
         self.ax_loss.grid(True, axis='y', color='#0000ff70', linewidth=1)
@@ -83,9 +94,6 @@ class Plot:
 
         plt.show()
 
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
         self.running_loss = 0.0
         self.max_loss = 0.0
 
@@ -133,8 +141,11 @@ class Plot:
             self.fig.canvas.draw_idle()
             self.save_file()
 
-        if step % Plot.DRAW_EVERY == 0:
+        now = time.time()
+
+        if now - self.last_flush_time > Plot.TARGET_FLUSH_DT:
             self.fig.canvas.flush_events()
+            self.last_flush_time = now
 
     def __append_psnr(self, step: int, psnr: float):
         self.step_psnr_x.append(step)
