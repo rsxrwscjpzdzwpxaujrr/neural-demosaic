@@ -3,6 +3,7 @@ import sys
 import time
 from pathlib import Path
 
+import random
 import argparse
 import numpy as np
 import torch
@@ -30,6 +31,8 @@ WARMUP_ITERS = 250
 LOG_EVERY = 250
 VAL_EVERY = 1000
 
+FILES_EVERY = 2500
+FILE_CACHE = 8 * 1024 * 1024 * 1024
 
 EXPOSURE_RANGE = (-2.5, 2.5)
 ISO_GAIN_RANGE = (-1.0, 7.0)
@@ -48,14 +51,32 @@ def our_write(cls='', *args, **kwargs):
 
 class GTPatches(Dataset):
     def __init__(self, files):
-        self.images = [np.load(f, mmap_mode="r") for f in files]
+        self.load_files(files, first_run=True)
+
+    def __len__(self):
+        return ITERS * BATCH
+
+    def load_files(self, files, first_run=False):
+        if not first_run and len(files) == len(self.images):
+            return
+
+        self.images = []
+
+        size = 0
+
+        for f in files if first_run else random.sample(files, len(files)):
+            file = np.load(f, mmap_mode="r")
+            size += file.size * file.itemsize
+
+            if size > FILE_CACHE:
+                # print(f"reached size {size} with {len(self.images)} files")
+                break
+
+            self.images.append(file)
 
         areas = torch.tensor([img.shape[-2] * img.shape[-1] for img in self.images], dtype=torch.float32)
 
         self.weights = areas / areas.sum()
-
-    def __len__(self):
-        return ITERS * BATCH
 
     def __getitem__(self, _):
         img = self.images[torch.multinomial(self.weights, 1).item()]
@@ -280,6 +301,9 @@ def main():
         opt.step()
         sched.step()
         running += loss.item()
+
+        if step % FILES_EVERY == 0:
+            loader.dataset.load_files(train_files)
 
         if step % LOG_EVERY == 0:
             avg_loss = running / LOG_EVERY
