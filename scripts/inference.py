@@ -58,6 +58,8 @@ if __name__ == "__main__":
     raf_files = sorted(RAF_PATH.glob("*"))
 
     for model_file in model_files:
+        print(f"{model_file.name}...")
+
         model_dict = torch.load(model_file, map_location=DEVICE)
         width, depth = get_model_width_depth(model_dict)
         model = PackedXTransNet(XTRANS_PATTERN, width=width, depth=depth).to(DEVICE)
@@ -67,19 +69,19 @@ if __name__ == "__main__":
         model.eval()
 
         for raf_file in raf_files:
+            print(f"  {raf_file.name}...")
             file = Path(OUTPUT_PATH / f"{raf_file.stem}_{model_file.stem}.png")
-
-            print(f"{raf_file}...")
 
             if file.exists():
                 if file.stat().st_mtime < model_file.stat().st_mtime:
-                    print(f"  file exists, overwriting (old)")
+                    print("    file exists, overwriting (old)")
                 else:
-                    print(f"  file exists, skipping")
+                    print("    file exists, skipping")
                     continue
 
             with rawler_py.RawImage.open(str(raf_file)) as img:
-                print(f"  {img.make} {img.model} | {img.width}x{img.height}")
+
+                print(f"    {img.make} {img.model} | {img.width}x{img.height}")
 
                 if img.active_area is not None:
                     left, top, w, h = img.active_area
@@ -109,14 +111,17 @@ if __name__ == "__main__":
                     for sx in range(period):
                         if np.array_equal(np.roll(canonical, (-sy, -sx), axis=(0, 1)), pattern_grid):
                             shift = (sy, sx)
-                print(f"  CFA shift: dy={shift[0]} dx={shift[1]}")
+                print(f"    CFA shift: dy={shift[0]} dx={shift[1]}")
 
                 cfa = (raw_data - black) / (white - black)
 
-                print(f"  Running inference on {w}x{h}...")
                 t0 = time.perf_counter()
+                print(f"    Running inference on {w}x{h}...", end=' ', flush=True)
+
                 rgb = run_tiled(model, cfa, shift[0], shift[1])
-                print(f"  {time.perf_counter() - t0:.2f}s")
+
+                print(f"{time.perf_counter() - t0:.2f}s")
+                print("    Postprocessing...")
 
                 rgb *= wb[:, None, None]
                 rgb = apply_raw_processing(rgb, img)
@@ -125,4 +130,4 @@ if __name__ == "__main__":
 
                 file.parent.mkdir(exist_ok=True)
                 Image.fromarray(out, "RGB").save(file)
-                print(f"  Saved: {file}")
+                print(f"    Saved: {file}")
