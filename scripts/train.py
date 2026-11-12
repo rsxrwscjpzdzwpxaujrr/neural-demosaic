@@ -295,7 +295,9 @@ def main():
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
 
-        loss = F.l1_loss(out, gt) + F.l1_loss(gamma(out), gamma(gt))
+        scale = gt.mean(dim=(1, 2, 3)).detach() + 1e-3
+        # loss = F.l1_loss(out, gt)
+        loss = (F.l1_loss(out, gt, reduction='none').mean(dim=(1, 2, 3)) / scale).mean()
 
         opt.zero_grad(set_to_none=True)
         loss.backward()
