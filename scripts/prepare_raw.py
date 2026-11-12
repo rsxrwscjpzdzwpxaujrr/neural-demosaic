@@ -244,8 +244,7 @@ def main():
                     reason = "low_grad"
 
                 if save:
-                    #np.save(out_path, patch.astype(np.float16))
-                    pass
+                    np.save(out_path, patch.astype(np.float16))
 
                 print(f"    {'+' if save else '-'} -> {out_path} {patch.shape[1]}x{patch.shape[0]}, "
                       f"score {score:.03f} {reason}")
