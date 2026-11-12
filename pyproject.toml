@@ -17,4 +17,5 @@ dependencies = [
     "pyqt6>=6.11.0",
     "exifread>=3.5.1",
     "rawpy>=0.28.0",
+    "opencv-python>=5.0.0.93",
 ]

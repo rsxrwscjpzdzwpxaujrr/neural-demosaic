@@ -61,10 +61,11 @@ class GTPatches(Dataset):
             return
 
         self.images = []
+        scores = []
 
         size = 0
 
-        for f in files if first_run else random.sample(files, len(files)):
+        for f in random.sample(files, len(files)):
             file = np.load(f, mmap_mode="r")
             size += file.size * file.itemsize
 
@@ -73,13 +74,21 @@ class GTPatches(Dataset):
                 break
 
             self.images.append(file)
+            scores.append(float(f.stem.split('_')[0]))
 
-        areas = torch.tensor([img.shape[-2] * img.shape[-1] for img in self.images], dtype=torch.float32)
+        scores = np.array(scores, dtype=np.float32)
 
-        self.weights = areas / areas.sum()
+        self.order = np.argsort(scores)
 
-    def __getitem__(self, _):
-        img = self.images[torch.multinomial(self.weights, 1).item()]
+    def __getitem__(self, i):
+        # img = self.images[torch.multinomial(self.weights, 1).item()]
+        # position within the batch -> one stratum of [0, 1)
+        k = ((BATCH - 1) - i) % BATCH
+        u = (k + torch.rand(()).item()) / BATCH
+
+        j = min(int(u * len(self.order)), len(self.order) - 1)
+
+        img = self.images[self.order[j]]
         h, w, _ = img.shape
         y = torch.randint(h - PATCH + 1, ()).item()
         x = torch.randint(w - PATCH + 1, ()).item()

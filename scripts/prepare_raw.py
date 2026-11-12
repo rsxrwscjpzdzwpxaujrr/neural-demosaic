@@ -10,8 +10,10 @@ from pathlib import Path
 
 import torch
 import numpy as np
+import cv2
 import rawler_py
 import rawpy
+import exifread
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,15 +26,27 @@ CKPT_PATH = Path("weights/")
 RAW_EXTENSIONS = {".raf", ".dng", ".nef", ".cr2", ".cr3", ".arw", ".orf", ".rw2"}
 
 
-def decode_raw(path: Path) -> tuple[np.ndarray, int]:
+def decode_raw(path: Path) -> tuple[np.ndarray, int, int]:
     """Decode to WB'd linear CFA, cropped so the canonical pattern starts at (0, 0).
     Returns (cfa, period)."""
+    iso = 160
+
+    with open(path, "rb") as f:
+        try:
+            tags = exifread.process_file(f)
+
+            iso_str = tags.get("EXIF ISOSpeedRatings") or tags.get("Image ISO")
+
+            iso = int(str(iso_str))
+        except Exception as _:
+            print(f"  unable to determine iso, assuming default {iso}")
+
     with rawpy.imread(str(path)) as raw:
         black = raw.black_level_per_channel
         white = raw.white_level
 
     with rawler_py.RawImage.open(str(path)) as img:
-        print(f"  {img.make} {img.model} | {img.width}x{img.height}")
+        print(f"  {img.make} {img.model} | {iso:0d} ISO | {img.width}x{img.height}")
 
         if img.active_area is not None:
             left, top, w, h = img.active_area
@@ -69,7 +83,8 @@ def decode_raw(path: Path) -> tuple[np.ndarray, int]:
         # Crop instead of pad: drop leading rows/cols so the pattern becomes canonical
         r0 = (period - shift[0]) % period
         c0 = (period - shift[1]) % period
-        return cfa[r0:, c0:], period
+
+        return cfa[r0:, c0:], period, iso
 
 
 def superpixel(cfa: np.ndarray, period: int) -> np.ndarray:
@@ -103,14 +118,37 @@ def downscale(rgb: np.ndarray, factor: int) -> np.ndarray:
     return np.stack(planes, axis=-1)
 
 
+def to_patches(img, P=120):
+    h, w, c = img.shape
+    nh, nw = h // P, w // P
+    oy = (h - nh * P) // 2
+    ox = (w - nw * P) // 2
+
+    crop = img[oy:oy + nh * P, ox:ox + nw * P]
+    patches = crop.reshape(nh, P, nw, P, c).swapaxes(1, 2).reshape(-1, P, P, 3)   # (N, P, P, c)
+    return patches, (oy, ox)
+
+
+def grad_score(y, eps=0.002):
+    gx = cv2.Scharr(y, cv2.CV_32F, 1, 0, scale=1/32)
+    gy = cv2.Scharr(y, cv2.CV_32F, 0, 1, scale=1/32)
+    g = np.sqrt(gx**2 + gy**2).mean()
+    g /= (y.mean() + eps)
+    return g
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inputs", nargs="+", type=Path, help="raw files or directories")
     parser.add_argument("-o", "--output", type=Path, default=Path("data/gt"))
+    parser.add_argument("--patch", type=int, default=120, help="Patch size. Must be divisible by 6.")
     parser.add_argument("--downscale", type=lambda s: set(int(item) for item in s.split(',')), default=[2,3],
                         help="comma separated extra downscale factor after superpixel list (default 2,3)")
     parser.add_argument("--infer-with", type=str, default=None,
                         help="Name of the weights which are going to be used for inference, superpixel will be used if not set")
+    parser.add_argument("--min-grad", type=float, default=0.025, help="Drop patches below certain grad score threshold")
+    parser.add_argument("--max-iso_eq", type=float, default=25.0, help="Drop patches on which a pixel gets less light "
+                        "than a 4500x3000 sensor the same value as ISO")
     args = parser.parse_args()
 
     inference = args.infer_with is not None
@@ -133,12 +171,15 @@ def main():
         model.half()
         model.eval()
 
+    max_iso_equivalent = args.max_iso_eq
+    min_grad = args.min_grad
+
     args.output.mkdir(parents=True, exist_ok=True)
     for path in files:
         print(f"{path.name}:")
 
         try:
-            cfa, period = decode_raw(path)
+            cfa, period, iso = decode_raw(path)
         except Exception as e:
             print(f"  error occured during decoding {e}")
             continue
@@ -146,10 +187,22 @@ def main():
         pre_rgb = None
 
         for factor in args.downscale:
-            out_path = args.output / f"{path.stem}_x{factor}.npy"
-            if out_path.exists():
-                print(f"  skip {out_path} (exists)")
+            superpixel_factor = 3 if period == 6 else 2
+
+            if inference and period == 6:
+                superpixel_factor = 2
+
+            size = (int(cfa.shape[0] / (factor * superpixel_factor)), int(cfa.shape[1] / (factor * superpixel_factor)))
+
+            # The ISO at which a pixel on a fullframe 4500x3000 sensor would get the same amount of light as a pixel
+            # from our patch. We assume our sensor is fullframe because I'm not coding sensor size determination.
+            iso_equivalent = iso / ((4500 * 3000) / (size[0] * size[1]))
+
+            if iso_equivalent >= max_iso_equivalent:
+                print(f"  skip {path.stem} with iso {iso} at factor {factor}, iso equivalent {iso_equivalent:.1f}")
                 continue
+
+            str_factor = factor
 
             if inference and period == 6:
                 factor = factor * 2
@@ -162,9 +215,40 @@ def main():
                     pre_rgb = superpixel(cfa, period)
 
             rgb = downscale(pre_rgb, factor)
-            np.save(out_path, rgb.astype(np.float16))
-            print(f"  -> {out_path} {rgb.shape[1]}x{rgb.shape[0]}, "
-                  f"range [{rgb.min():.3f}, {rgb.max():.3f}]")
+
+            assert (rgb.shape[0], rgb.shape[1]) == size, "Size calc mismatch"
+
+            print(f"  downscaled to {rgb.shape[0]}x{rgb.shape[1]} for factor {str_factor} ({factor})")
+
+            patches, (oy, ox) = to_patches(rgb)
+
+            patch_i = 0
+
+            for patch in patches:
+                y = patch.sum(axis=-1)
+
+                score = grad_score(y)
+
+                out_path = args.output / f"{score:.03f}_{path.stem}_x{str_factor}_{patch_i:04d}.npy"
+                patch_i += 1
+
+                save = True
+                reason = ''
+
+                if out_path.exists():
+                    save = False
+                    reason = "exists"
+
+                if score < min_grad:
+                    save = False
+                    reason = "low_grad"
+
+                if save:
+                    #np.save(out_path, patch.astype(np.float16))
+                    pass
+
+                print(f"    {'+' if save else '-'} -> {out_path} {patch.shape[1]}x{patch.shape[0]}, "
+                      f"score {score:.03f} {reason}")
 
 
 if __name__ == "__main__":
