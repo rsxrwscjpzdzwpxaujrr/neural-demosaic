@@ -243,7 +243,7 @@ def main():
     print(f"{len(val_files)} val images")
 
     loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
-                        persistent_workers=True)
+                        prefetch_factor=10, persistent_workers=True, shuffle=False)
     model = PackedXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     sched = torch.optim.lr_scheduler.SequentialLR(
