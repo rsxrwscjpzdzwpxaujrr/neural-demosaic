@@ -46,6 +46,7 @@ class ResBlock(nn.Module):
 
         nn.init.zeros_(self.conv2.weight)
         nn.init.zeros_(self.conv2.bias)
+
     def forward(self, x):
         return x + self.conv2(F.relu(self.conv1(x)))
 
