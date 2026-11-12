@@ -244,7 +244,8 @@ def main():
 
     loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
                         prefetch_factor=10, persistent_workers=True, shuffle=False)
-    model = PackedXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
+    non_compiled_model = PackedXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
+    model = torch.compile(non_compiled_model)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     sched = torch.optim.lr_scheduler.SequentialLR(
         opt, schedulers=[
@@ -329,7 +330,7 @@ def main():
             marker = ""
             if val_psnr[0] > best_psnr[0]:
                 best_psnr = val_psnr
-                torch.save(model.state_dict(), ckpt_file)
+                torch.save(non_compiled_model.state_dict(), ckpt_file)
                 marker = " *"
             print(
                 f"PSNR train {pretty_psnrs(train_psnr)} (mark {pretty_psnrs(mark_train)}) | "
