@@ -41,6 +41,11 @@ class ResBlock(nn.Module):
         self.conv1 = nn.Conv2d(ch, ch, 3, padding=1)
         self.conv2 = nn.Conv2d(ch, ch, 3, padding=1)
 
+        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_in', nonlinearity='relu')
+        nn.init.zeros_(self.conv1.bias)
+
+        nn.init.zeros_(self.conv2.weight)
+        nn.init.zeros_(self.conv2.bias)
     def forward(self, x):
         return x + self.conv2(F.relu(self.conv1(x)))
 
