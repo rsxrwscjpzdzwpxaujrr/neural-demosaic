@@ -111,15 +111,14 @@ if __name__ == "__main__":
                             shift = (sy, sx)
                 print(f"  CFA shift: dy={shift[0]} dx={shift[1]}")
 
-                cfa = np.clip((raw_data - black) / (white - black), 0.0, 1.2)
-                tiled = np.tile(pattern_grid, ((h + period - 1) // period, (w + period - 1) // period))[:h, :w]
-                cfa = cfa * wb[tiled]
+                cfa = (raw_data - black) / (white - black)
 
                 print(f"  Running inference on {w}x{h}...")
                 t0 = time.perf_counter()
                 rgb = run_tiled(model, cfa, shift[0], shift[1])
                 print(f"  {time.perf_counter() - t0:.2f}s")
 
+                rgb *= wb[:, None, None]
                 rgb = apply_raw_processing(rgb, img)
 
                 out = np.clip(np.round(np.transpose(rgb, (1, 2, 0)) * 255.0), 0, 255).astype(np.uint8)

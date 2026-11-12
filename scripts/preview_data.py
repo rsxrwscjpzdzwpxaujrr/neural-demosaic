@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.utils import apply_aces, apply_srgb_gamma
+from src.utils import apply_aces, apply_srgb_gamma, apply_approximate_wb
 
 
 def npy_to_png(path: Path, out_path: Path) -> None:
@@ -14,7 +14,8 @@ def npy_to_png(path: Path, out_path: Path) -> None:
     if img.ndim != 3 or img.shape[-1] != 3:
         raise ValueError(f"{path} is not an (H, W, 3) array (got shape {img.shape})")
 
-    rgb = apply_aces(img)
+    rgb = apply_approximate_wb(img)
+    rgb = apply_aces(rgb)
     rgb = apply_srgb_gamma(rgb)
 
     rgb8 = np.round(rgb * 255.0).astype(np.uint8)

@@ -36,6 +36,11 @@ def apply_srgb_gamma(rgb: np.ndarray) -> np.ndarray:
     return np.where(rgb <= 0.0031308, rgb * 12.92, 1.055 * np.power(rgb, 1 / 2.4) - 0.055)
 
 
+def apply_approximate_wb(rgb: np.ndarray) -> np.ndarray:
+    """Approximate D65 wb"""
+    return rgb * np.array([1.9434622526168823, 0.935994565486908, 1.376854658126831])
+
+
 def apply_orientation(rgb: np.ndarray, orientation: str) -> np.ndarray:
     """Apply orientation to (3, H, W) rgb array based on rawler's contract."""
     mapping = {

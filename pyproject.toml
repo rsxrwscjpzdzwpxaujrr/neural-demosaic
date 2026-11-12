@@ -16,4 +16,5 @@ dependencies = [
     "matplotlib>=3.11.1",
     "pyqt6>=6.11.0",
     "exifread>=3.5.1",
+    "rawpy>=0.28.0",
 ]

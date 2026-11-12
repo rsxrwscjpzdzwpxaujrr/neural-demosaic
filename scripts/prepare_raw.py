@@ -11,6 +11,7 @@ from pathlib import Path
 import torch
 import numpy as np
 import rawler_py
+import rawpy
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,6 +27,10 @@ RAW_EXTENSIONS = {".raf", ".dng", ".nef", ".cr2", ".cr3", ".arw", ".orf", ".rw2"
 def decode_raw(path: Path) -> tuple[np.ndarray, int]:
     """Decode to WB'd linear CFA, cropped so the canonical pattern starts at (0, 0).
     Returns (cfa, period)."""
+    with rawpy.imread(str(path)) as raw:
+        black = raw.black_level_per_channel
+        white = raw.white_level
+
     with rawler_py.RawImage.open(str(path)) as img:
         print(f"  {img.make} {img.model} | {img.width}x{img.height}")
 
@@ -34,15 +39,7 @@ def decode_raw(path: Path) -> tuple[np.ndarray, int]:
         else:
             left, top, w, h = 0, 0, img.width, img.height
         print(f"  active {w}x{h} (top={top}, left={left})")
-        raw_data = img.raw_data()[top:top + h, left:left + w].astype(np.float32)
-
-        black = float(img.blacklevel["levels"][0])
-        white = float(img.whitelevel[0])
-
-        wb = np.array(img.wb_coeffs[:3], dtype=np.float32)
-        if np.isnan(wb[1]) or wb[1] == 0:
-            wb[1] = 1.0
-        wb /= wb[1]
+        cfa = img.raw_data()[top:top + h, left:left + w].astype(np.float32)
 
         period = 6 if len(img.cfa_pattern) == 36 else 2
         char_to_color = {"R": 0, "G": 1, "B": 2}
@@ -60,10 +57,14 @@ def decode_raw(path: Path) -> tuple[np.ndarray, int]:
                     shift = (dy, dx)
                     break
 
-        cfa = np.clip((raw_data - black) / (white - black), 0.0, 1.2)
-
         tiled = np.tile(pattern_grid, ((h + period - 1) // period, (w + period - 1) // period))[:h, :w]
-        cfa = cfa * wb[tiled]
+
+        if period == 6:
+            black_map = np.float32(black[0])
+        else:
+            black_map = np.asarray(black, dtype=np.float32)[tiled]
+
+        cfa = (cfa - black_map) / (white - black_map)
 
         # Crop instead of pad: drop leading rows/cols so the pattern becomes canonical
         r0 = (period - shift[0]) % period
@@ -161,7 +162,6 @@ def main():
                     pre_rgb = superpixel(cfa, period)
 
             rgb = downscale(pre_rgb, factor)
-            rgb = np.maximum(rgb, 0.0)
             np.save(out_path, rgb.astype(np.float16))
             print(f"  -> {out_path} {rgb.shape[1]}x{rgb.shape[0]}, "
                   f"range [{rgb.min():.3f}, {rgb.max():.3f}]")
