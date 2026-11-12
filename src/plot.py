@@ -7,7 +7,7 @@ import matplotlib.ticker as ticker
 
 
 class Plot:
-    MAX_LOSS = 0.04
+    MAX_LOSS = 0.075
     SAMPLES_EVERY = 250
     PIC_SAMPLES = 4
     PIC_COLUMNS = 3
