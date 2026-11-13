@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-from kornia.color import rgb_to_xyz
 from rawler_py.rawler_py import RawImage
 
 
@@ -36,9 +35,14 @@ def apply_srgb_gamma(rgb: np.ndarray) -> np.ndarray:
     return np.where(rgb <= 0.0031308, rgb * 12.92, 1.055 * np.power(rgb, 1 / 2.4) - 0.055)
 
 
-def apply_approximate_wb(rgb: np.ndarray) -> np.ndarray:
+def apply_approximate_wb(rgb: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
     """Approximate D65 wb"""
-    return rgb * np.array([1.9434622526168823, 0.935994565486908, 1.376854658126831])
+    np_coeffs = np.array([1.9434622526168823, 0.935994565486908, 1.376854658126831])
+
+    if isinstance(rgb, np.ndarray):
+        return rgb * np.array(np_coeffs)
+    else:
+        return rgb * torch.tensor(np_coeffs, device=rgb.device, dtype=rgb.dtype).reshape(3, 1, 1)
 
 
 def apply_orientation(rgb: np.ndarray, orientation: str) -> np.ndarray:
@@ -85,39 +89,3 @@ def apply_raw_processing(rgb: np.ndarray, img: RawImage) -> np.ndarray:
     rgb = apply_orientation(rgb, img.orientation)
 
     return rgb
-
-# Taken from kornia
-def lin_rgb_to_luv(image: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
-    if not isinstance(image, torch.Tensor):
-        raise TypeError(f"Input type is not a torch.Tensor. Got {type(image)}")
-
-    if len(image.shape) < 3 or image.shape[-3] != 3:
-        raise ValueError(f"Input size must have a shape of (*, 3, H, W). Got {image.shape}")
-
-    xyz_im: torch.Tensor = rgb_to_xyz(image)
-
-    x: torch.Tensor = xyz_im[..., 0, :, :]
-    y: torch.Tensor = xyz_im[..., 1, :, :]
-    z: torch.Tensor = xyz_im[..., 2, :, :]
-
-    threshold = 0.008856
-    L: torch.Tensor = torch.where(
-        y > threshold,
-        116.0 * torch.pow(y.clamp(min=threshold), 1.0 / 3.0) - 16.0,
-        903.3 * y,
-    )
-
-    # Compute reference white point
-    xyz_ref_white: tuple[float, float, float] = (0.95047, 1.0, 1.08883)
-    u_w: float = (4 * xyz_ref_white[0]) / (xyz_ref_white[0] + 15 * xyz_ref_white[1] + 3 * xyz_ref_white[2])
-    v_w: float = (9 * xyz_ref_white[1]) / (xyz_ref_white[0] + 15 * xyz_ref_white[1] + 3 * xyz_ref_white[2])
-
-    u_p: torch.Tensor = (4 * x) / (x + 15 * y + 3 * z + eps)
-    v_p: torch.Tensor = (9 * y) / (x + 15 * y + 3 * z + eps)
-
-    u: torch.Tensor = 13 * L * (u_p - u_w)
-    v: torch.Tensor = 13 * L * (v_p - v_w)
-
-    out = torch.stack([L, u, v], dim=-3)
-
-    return out

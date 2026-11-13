@@ -10,9 +10,10 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
+from torchmetrics.image import StructuralSimilarityIndexMeasure
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.utils import lin_rgb_to_luv
+from src.utils import apply_approximate_wb
 from src.cfa import XTRANS_PATTERN, get_mosaic_arr
 from src.models import PackedXTransNet
 from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
@@ -40,6 +41,8 @@ ISO_GAIN_RANGE = (-3.0, 3.0)
 YY, XX, CFA_INDICES = None, None, None
 
 LOG_TXT = None
+
+ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(DEVICE)
 
 
 def our_write(cls='', *args, **kwargs):
@@ -105,16 +108,6 @@ def psnr(a, b):
     return -10 * torch.log10(F.mse_loss(a, b)).item()
 
 
-# 0 db is just noticable difference, more means less noticable, inspired by CIE76
-def percept_diff(a, b):
-    a_luv = lin_rgb_to_luv(a)
-    b_luv = lin_rgb_to_luv(b)
-
-    jnd = 2.3
-
-    return 20 * np.log10(jnd) + psnr(a_luv, b_luv)
-
-
 def make_eval_pairs(images, size=1080):
     assert size % 6 == 0, "size must be divisible by 6"
     pairs = []
@@ -130,20 +123,32 @@ def make_eval_pairs(images, size=1080):
     return pairs
 
 
+def calc_vals(res, tg):
+    res = apply_approximate_wb(res)
+    tg = apply_approximate_wb(tg)
+
+    psnr_val = psnr(res, tg)
+    # diff = percept_diff(res, gt)
+    ssim_val = ssim(gamma(res), gamma(tg)).item()
+
+    return [psnr_val, ssim_val]
+
+
+def pretty_score(psnrs: tuple) -> str:
+    return f"PSNR: {psnrs[0]:.2f}dB, SSIM: {psnrs[1]:.4f}"
+
+
 @torch.no_grad()
 def evaluate(fn, pairs):
     vals = []
 
     for mo, gt in tqdm(pairs, unit='pair', desc='Evaluation', delay=2.0):
-        mo_d = mo.to(DEVICE)
-        gt_d = gt.to(DEVICE)
+        mo = mo.to(DEVICE)
+        gt = gt.to(DEVICE)
 
-        res = fn(mo_d)
+        res = fn(mo)
 
-        white_psnr = psnr(res, gt_d)
-        diff = percept_diff(res, gt_d)
-
-        vals.append([white_psnr, diff])
+        vals.append(calc_vals(res, gt))
 
     return tuple(np.mean(vals, axis=0))
 
@@ -153,18 +158,11 @@ def markesteijn_psnr(kernels, pairs):
     vals = []
     for mo, gt in tqdm(pairs, unit='pair', desc='Markesteijn', delay=2.0):
         mosaic = np.pad(mo[0, 0].numpy(), 18, mode="symmetric")
-        out = kernels.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
-        out = torch.from_numpy(np.ascontiguousarray(out[18:-18, 18:-18])).permute(2, 0, 1)[None]
+        res = kernels.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
+        res = torch.from_numpy(np.ascontiguousarray(res[18:-18, 18:-18])).permute(2, 0, 1)[None]
 
-        white_psnr = psnr(out, gt)
-        diff = percept_diff(out, gt)
-
-        vals.append([white_psnr, diff])
+        vals.append(calc_vals(res, gt))
     return tuple(np.mean(vals, axis=0))
-
-
-def pretty_psnrs(psnrs: tuple) -> str:
-    return f"{psnrs[0]:.2f} ({', '.join(f'{x:.1f}' for x in psnrs[1:])})"
 
 
 @torch.no_grad()
@@ -263,29 +261,32 @@ def main():
         ], milestones=[WARMUP_ITERS]
     )
 
-    train_eval = make_eval_pairs([np.load(f, mmap_mode="r") for f in train_files])
-    val_eval = make_eval_pairs([np.load(f, mmap_mode="r") for f in val_files])
-    print('Evaluating base model...')
-    base_train = evaluate(model.baseline, train_eval)
-    base_val = evaluate(model.baseline, val_eval)
-    print(f"bilinear PSNR:    train {pretty_psnrs(base_train)}, val {pretty_psnrs(base_val)}")
+    random.seed(0)
 
-    mark_val = None
+    train_pairs = make_eval_pairs([np.load(f, mmap_mode="r") for f in random.sample(train_files, min(256, len(train_files)))])
+    val_pairs = make_eval_pairs([np.load(f, mmap_mode="r") for f in val_files])
+
+    print('Evaluating base model...')
+    base_train = evaluate(model.baseline, train_pairs)
+    base_val = evaluate(model.baseline, val_pairs)
+    print(f"Bilinear val {pretty_score(base_val)}, train {pretty_score(base_train)}")
+
+    mark_val_score = None
 
     if not args.faststart:
         print('Evaluating Markesteijn...')
         os.environ.setdefault("PYOPENCL_CTX", "0")
         kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
-        mark_train = markesteijn_psnr(kernels, train_eval)
-        mark_val = markesteijn_psnr(kernels, val_eval)
-        print(f"markesteijn PSNR: train {pretty_psnrs(mark_train)}, val {pretty_psnrs(mark_val)}")
+        mark_train_score = markesteijn_psnr(kernels, train_pairs)
+        mark_val_score = markesteijn_psnr(kernels, val_pairs)
+        print(f"Markesteijn val {pretty_score(mark_val_score)}, train {pretty_score(mark_train_score)}")
     else:
-        mark_train = mark_val = (float('-inf'), float('-inf'))
+        mark_train_score = mark_val_score = (float('-inf'), float('-inf'))
 
     CKPT_PATH.mkdir(exist_ok=True)
     ckpt_file = CKPT_PATH / f"{args.name}.pt"
 
-    best_psnr = 0.0, float('-inf')
+    best_val_score = 0.0, float('-inf')
     running = 0.0
     t0 = time.time()
     max_loss = 0.0
@@ -295,7 +296,8 @@ def main():
             ITERS, PATCH,
             LOG_PATH, args.name,
             args.val_since, VAL_EVERY,
-            base_val[0], None if mark_val is None else mark_val[0]
+            (base_val[0], base_train[0]),
+            None if mark_val_score is None else mark_val_score[0]
         )
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2, position=0)
@@ -319,10 +321,10 @@ def main():
         sched.step()
         running += loss.item()
 
-        if step % FILES_EVERY == 0:
+        if step % FILES_EVERY == 0 and step != ITERS:
             loader.dataset.load_files(train_files)
 
-        if step % LOG_EVERY == 0:
+        if step % LOG_EVERY == 0 or step == ITERS:
             avg_loss = running / LOG_EVERY
             print(f"step {step}/{ITERS}  loss {avg_loss:.5f}  "
                   f"lr {sched.get_last_lr()[0]:.2e}  {LOG_EVERY * BATCH / (time.time() - t0):.0f} img/s")
@@ -331,29 +333,30 @@ def main():
 
             max_loss = max(max_loss, avg_loss)
 
-        val_psnr = None
 
-        if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0:
+
+        val_score = None
+
+        if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0 or (step == 1 and args.finetune is not None):
             model.eval()
-            train_psnr = evaluate(model, train_eval)
-            val_psnr = evaluate(model, val_eval)
+            train_score = evaluate(model, train_pairs)
+            val_score = evaluate(model, val_pairs)
             model.train()
             marker = ""
-            if val_psnr[0] > best_psnr[0]:
-                best_psnr = val_psnr
+            if val_score[0] > best_val_score[0]:
+                best_val_score = val_score
                 torch.save(non_compiled_model.state_dict(), ckpt_file)
                 marker = " *"
-            print(
-                f"PSNR train {pretty_psnrs(train_psnr)} (mark {pretty_psnrs(mark_train)}) | "
-                f"val {pretty_psnrs(val_psnr)} (mark {pretty_psnrs(mark_val)}){marker}")
-            statusbar.set_description_str(f"Last PSNR: {val_psnr[0]:.2f}dB, Best PSNR: {best_psnr[0]:.2f}dB")
+
+            statusbar.set_description_str(f"Last val {pretty_score(val_score)},\tBest val {pretty_score(val_score)}")
+            print(f"val {pretty_score(val_score)} train {pretty_score(train_score)}{marker}")
 
         pic = None
 
         if plot is not None and step % Plot.SAMPLES_EVERY == 0:
             with torch.no_grad():
-                out_a = gt[0:Plot.PIC_SAMPLES, ...]
-                out_b = out[0:Plot.PIC_SAMPLES, ...]
+                out_a = apply_approximate_wb(gt[0:Plot.PIC_SAMPLES, ...])
+                out_b = apply_approximate_wb(out[0:Plot.PIC_SAMPLES, ...])
 
                 pics = [
                     gamma(out_a),
@@ -365,7 +368,7 @@ def main():
                 pic = torch.cat(pics, dim=1).cpu().numpy()
 
         if plot is not None:
-            plot.tick(step, loss.item(), None if val_psnr is None else val_psnr[0], pic)
+            plot.tick(step, loss.item(), None if val_score is None else (val_score[0], train_score[0]), pic)
 
     LOG_TXT.close()
 

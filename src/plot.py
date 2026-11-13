@@ -4,6 +4,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.patches as mpatches
 
 
 class Plot:
@@ -74,23 +75,34 @@ class Plot:
         self.ax_psnr.autoscale(enable=True, axis='y')
         self.ax_psnr.format_ydata = lambda y: f"{y:.2f} dB"
 
-        self.line_psnr, = self.ax_psnr.plot([], color='tab:red', marker='o')
+        self.line_psnr0, = self.ax_psnr.plot([], color='tab:red', marker='o', label='val PSNR')
+        self.line_psnr1, = self.ax_psnr.plot([], color='tab:red', linestyle='dotted', label='train PSNR')
 
         self.ax_psnr.set_ylabel("PSNR", color='tab:red')
         self.ax_psnr.yaxis.set_major_formatter(ticker.EngFormatter(unit='dB'))
         self.ax_psnr.tick_params(axis='y', labelcolor='tab:red')
 
         self.step_psnr_x = []
-        self.step_psnr_y = []
+        self.step_psnr_y0 = []
+        self.step_psnr_y1 = []
 
         if mark_val is not None:
             self.ax_psnr.axhline(y=mark_val, color='#00ff00a0', linewidth=1, label="val mark PSNR")
 
         if base_val is not None:
-            self.ax_psnr.axhline(y=base_val, color='#ffb000a0', linewidth=1, label="val bili PSNR")
+            self.ax_psnr.axhline(y=base_val[0], color='#ffb000a0', linewidth=1, label="val bili PSNR")
             self.__append_psnr(0, base_val)
 
-        self.ax_psnr.legend()
+        handles, _ = self.ax_psnr.get_legend_handles_labels()
+
+        loss_patches = [
+            mpatches.Patch(color=plt.cm.viridis(1.0), label='Avg loss'),
+            mpatches.Patch(color=plt.cm.viridis(0.5), label='Max loss')
+        ]
+
+        handles.extend(loss_patches)
+
+        self.ax_psnr.legend(handles=handles)
 
         plt.show()
 
@@ -110,7 +122,7 @@ class Plot:
             return
         ax.set_xlim(new)
 
-    def tick(self, step: int, loss: float, val_psnr: float | None, pic: np.ndarray | None):
+    def tick(self, step: int, loss: float, val_psnr: tuple[float] | None, pic: np.ndarray | None):
         assert step > 0, "Steps should start from 1"
 
         self.running_loss += loss
@@ -147,12 +159,16 @@ class Plot:
             self.fig.canvas.flush_events()
             self.last_flush_time = now
 
-    def __append_psnr(self, step: int, psnr: float):
+    def __append_psnr(self, step: int, psnr: tuple[float]):
         self.step_psnr_x.append(step)
-        self.step_psnr_y.append(psnr)
+        self.step_psnr_y0.append(psnr[0])
+        self.step_psnr_y1.append(psnr[1])
 
-        self.line_psnr.set_xdata(self.step_psnr_x)
-        self.line_psnr.set_ydata(self.step_psnr_y)
+        self.line_psnr0.set_xdata(self.step_psnr_x)
+        self.line_psnr0.set_ydata(self.step_psnr_y0)
+
+        self.line_psnr1.set_xdata(self.step_psnr_x)
+        self.line_psnr1.set_ydata(self.step_psnr_y1)
 
         self.ax_psnr.relim()
         self.ax_psnr.autoscale_view()
