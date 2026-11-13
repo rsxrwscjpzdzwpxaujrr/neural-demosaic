@@ -363,6 +363,10 @@ def main():
 
         loss = loss.mean()
 
+        if loss.item() == 0.0:
+            print("Zero loss, training failed")
+            break
+
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(
