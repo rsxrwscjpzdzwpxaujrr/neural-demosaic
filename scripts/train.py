@@ -31,6 +31,7 @@ LR = 0.0
 WARMUP_ITERS = 250
 LOG_EVERY = 250
 VAL_EVERY = 1000
+EZ_DISCARD_THRESHOLD = 0.0
 
 FILES_EVERY = 2500
 FILE_CACHE = 8 * 1024 * 1024 * 1024
@@ -54,7 +55,19 @@ def our_write(cls='', *args, **kwargs):
 
 class GTPatches(Dataset):
     def __init__(self, files):
+        self.counters = torch.zeros(2, dtype=torch.long).share_memory_()  # [total, ez_discarded]
+        self.global_idx = {f.stem: k for k, f in enumerate(files)}
+        self.ez = torch.zeros(len(files), dtype=torch.uint8).share_memory_()
+
         self.load_files(files, first_run=True)
+
+    @property
+    def total_patches(self):
+        return int(self.counters[0])
+
+    @property
+    def ez_discarded(self):
+        return int(self.counters[1])
 
     def __len__(self):
         return ITERS * BATCH
@@ -64,11 +77,13 @@ class GTPatches(Dataset):
             return
 
         self.images = []
-        scores = []
+        self.scores = []
+        self.names = []
+        self.gids = []
 
         size = 0
 
-        for f in random.sample(files, len(files)):
+        for f in tqdm(random.sample(files, len(files)), unit='file', desc='Loading files', delay=2.0):
             file = np.load(f, mmap_mode="r")
             size += file.size * file.itemsize
 
@@ -76,20 +91,39 @@ class GTPatches(Dataset):
                 # print(f"reached size {size} with {len(self.images)} files")
                 break
 
+            score = float(f.stem.split('_')[0]) ** 2
+
             self.images.append(file)
-            scores.append(float(f.stem.split('_')[0]))
+            self.names.append(f.stem)
+            self.gids.append(self.global_idx[f.stem])
+            self.scores.append(score)
 
-        scores = np.array(scores, dtype=np.float32)
+        self.scores = np.array(self.scores, dtype=np.float32)
+        self.order = np.argsort(self.scores)
 
-        self.order = np.argsort(scores)
+    def apply_patch_stats(self, stats):
+        for gid, loss in stats.items():
+            if loss < EZ_DISCARD_THRESHOLD:
+                self.ez[gid] = 1
+
+            if loss > EZ_DISCARD_THRESHOLD * 1.25:
+                self.ez[gid] = 0
 
     def __getitem__(self, i):
         # img = self.images[torch.multinomial(self.weights, 1).item()]
         # position within the batch -> one stratum of [0, 1)
         k = ((BATCH - 1) - i) % BATCH
-        u = (k + torch.rand(()).item()) / BATCH
 
-        j = min(int(u * len(self.order)), len(self.order) - 1)
+        for i in range(0, 2):
+            u = (k + torch.rand(()).item()) / BATCH
+            j = min(int(u * len(self.order)), len(self.order) - 1)
+            gid = self.gids[self.order[j]]
+
+            if not self.ez[gid]:
+                if i > 0:
+                    self.counters[1] += 1
+
+                break
 
         img = self.images[self.order[j]]
         h, w, _ = img.shape
@@ -97,7 +131,9 @@ class GTPatches(Dataset):
         x = torch.randint(w - PATCH + 1, ()).item()
         patch = torch.tensor(img[y:y + PATCH, x:x + PATCH])
 
-        return patch
+        self.counters[0] += 1
+
+        return patch, gid
 
 
 def gamma(x):
@@ -217,10 +253,14 @@ def main():
     parser.add_argument("--faststart", action="store_true", help="Skip Markesteijn demosaic at start and limit train "
                                                                  "and val files by 10.")
     parser.add_argument("--plt", action="store_true", help="Show result pics during training.")
+    parser.add_argument("--discard-threshold", type=float, default=0.3, help="Discard patches with loss above value. "
+                                                                             "Default 0.3.")
+    parser.add_argument("--ez-discard-threshold", type=float, default=0.009, help="Discard patches with loss below "
+                                                                                  "value. Default 0.009.")
     args = parser.parse_args()
 
-    global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES, LOG_TXT
-    ITERS, PATCH, BATCH, LR = args.iters, args.patch, args.batch, args.lr
+    global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES, LOG_TXT, EZ_DISCARD_THRESHOLD
+    ITERS, PATCH, BATCH, LR, EZ_DISCARD_THRESHOLD = args.iters, args.patch, args.batch, args.lr, args.ez_discard_threshold
 
     LOG_PATH.mkdir(exist_ok=True)
     LOG_TXT = open(LOG_PATH / f"{args.name}.txt", "w", encoding="utf-8")
@@ -302,32 +342,48 @@ def main():
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2, position=0)
     statusbar = tqdm(total=0, bar_format="{desc}", position=1)
-    for step, gt in pbar:
+    for step, (gt, gid) in pbar:
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
 
-        scale = gt.mean(dim=(1, 2, 3)).detach() + 1e-3
+        stats = dict()
+
         # loss = F.l1_loss(out, gt)
-        loss = (F.l1_loss(out, gt, reduction='none').mean(dim=(1, 2, 3)) / scale).mean()
+        scale = gt.mean(dim=(1, 2, 3)).detach().clamp(min=2 ** -7)
+        loss = F.l1_loss(out, gt, reduction='none').mean(dim=(1, 2, 3)) / scale
+
+        for i in range(0, BATCH):
+            loss_i = loss[i].item()
+            stats[gid] = loss_i
+
+        loss[loss > args.discard_threshold] = 0.0
+
+        loss = loss.mean()
 
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(
             parameters=model.parameters(),
-            max_norm=0.667,
+            max_norm=1.0,
             norm_type=2.0,
         )
         opt.step()
         sched.step()
         running += loss.item()
 
+        loader.dataset.apply_patch_stats(stats)
+
         if step % FILES_EVERY == 0 and step != ITERS:
             loader.dataset.load_files(train_files)
 
         if step % LOG_EVERY == 0 or step == ITERS:
             avg_loss = running / LOG_EVERY
+            easy_patches = loader.dataset.ez_discarded / loader.dataset.total_patches
+            loader.dataset.counters.zero_()
             print(f"step {step}/{ITERS}  loss {avg_loss:.5f}  "
-                  f"lr {sched.get_last_lr()[0]:.2e}  {LOG_EVERY * BATCH / (time.time() - t0):.0f} img/s")
+                  f"lr {sched.get_last_lr()[0]:.2e}  "
+                  f"ez discarded {easy_patches * 100.0:.1f}%  "
+                  f"{LOG_EVERY * BATCH / (time.time() - t0):.0f} img/s")
             running = 0.0
             t0 = time.time()
 
