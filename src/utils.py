@@ -1,6 +1,24 @@
 import numpy as np
 import torch
+import sys
+from pathlib import Path
 from rawler_py.rawler_py import RawImage
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.models import PackedXTransNet, PackedConstraintXTransNet
+from src.cfa import XTRANS_PATTERN, XTRANS_PATTERN_OLD
+
+
+def init_model(model_dict):
+    width = model_dict['stem.weight'].shape[0]
+    # magic
+    constraint = (len(model_dict) - 8) % 4 == 0
+    depth = (len(model_dict) - (8 if constraint else 6)) // 4
+
+    if constraint:
+        return PackedConstraintXTransNet(XTRANS_PATTERN, width=width, depth=depth)
+    else:
+        return PackedXTransNet(XTRANS_PATTERN_OLD, width=width, depth=depth)
 
 
 def apply_color_matrix(rgb: np.ndarray, xyz_to_cam: np.ndarray) -> np.ndarray:

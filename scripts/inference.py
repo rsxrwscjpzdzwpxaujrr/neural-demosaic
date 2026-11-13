@@ -9,9 +9,9 @@ import torch
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.cfa import XTRANS_PATTERN, BAYER_PATTERN
-from src.models import PackedXTransNet
-from src.utils import apply_raw_processing
+from src.cfa import XTRANS_PATTERN, XTRANS_PATTERN_OLD, BAYER_PATTERN
+from src.models import PackedConstraintXTransNet
+from src.utils import apply_raw_processing, init_model
 
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 CKPT_PATH = Path("weights/")
@@ -42,13 +42,6 @@ def run_tiled(model, cfa: np.ndarray, dy: int, dx: int) -> np.ndarray:
     return out[:, dy:dy + h, dx:dx + w].numpy()
 
 
-def get_model_width_depth(model_dict) -> tuple[int, int]:
-    width = model_dict['stem.weight'].shape[0]
-    # magic
-    depth = (len(model_dict) - 6) // 4
-    return width, depth
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--full-prec", action="store_true", help="Run inference in float32 mode instead of float16.")
@@ -61,8 +54,8 @@ if __name__ == "__main__":
         print(f"{model_file.name}...")
 
         model_dict = torch.load(model_file, map_location=DEVICE)
-        width, depth = get_model_width_depth(model_dict)
-        model = PackedXTransNet(XTRANS_PATTERN, width=width, depth=depth).to(DEVICE)
+        model = init_model(model_dict).to(DEVICE)
+        constraint = isinstance(model, PackedConstraintXTransNet)
         model.load_state_dict(model_dict)
         if not args.full_prec:
             model.half()
@@ -105,7 +98,7 @@ if __name__ == "__main__":
                         char = img.cfa_pattern[((y + top) % period) * period + ((x + left) % period)]
                         pattern_grid[y, x] = char_to_color[char]
 
-                canonical = XTRANS_PATTERN if period == 6 else BAYER_PATTERN
+                canonical = (XTRANS_PATTERN if constraint else XTRANS_PATTERN_OLD) if period == 6 else BAYER_PATTERN
                 shift = (0, 0)
                 for sy in range(period):
                     for sx in range(period):
@@ -115,6 +108,11 @@ if __name__ == "__main__":
 
                 cfa = (raw_data - black) / (white - black)
 
+                if not constraint:
+                    cfa = np.clip(cfa, 0.0, 1.2)
+                    tiled = np.tile(pattern_grid, ((h + period - 1) // period, (w + period - 1) // period))[:h, :w]
+                    cfa = cfa * wb[tiled]
+
                 t0 = time.perf_counter()
                 print(f"    Running inference on {w}x{h}...", end=' ', flush=True)
 
@@ -123,7 +121,9 @@ if __name__ == "__main__":
                 print(f"{time.perf_counter() - t0:.2f}s")
                 print("    Postprocessing...")
 
-                rgb *= wb[:, None, None]
+                if constraint:
+                    rgb *= wb[:, None, None]
+
                 rgb = apply_raw_processing(rgb, img)
 
                 out = np.clip(np.round(np.transpose(rgb, (1, 2, 0)) * 255.0), 0, 255).astype(np.uint8)

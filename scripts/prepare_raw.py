@@ -18,8 +18,9 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.cfa import XTRANS_PATTERN, BAYER_PATTERN
-from scripts.inference import get_model_width_depth, run_tiled
-from src.models import PackedXTransNet
+from src.utils import init_model
+from scripts.inference import run_tiled
+from src.models import PackedConstraintXTransNet
 
 DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 CKPT_PATH = Path("weights/")
@@ -165,8 +166,7 @@ def main():
     if inference:
         model_file = CKPT_PATH / (args.infer_with + '.pt')
         model_dict = torch.load(model_file, map_location=DEVICE)
-        width, depth = get_model_width_depth(model_dict)
-        model = PackedXTransNet(XTRANS_PATTERN, width=width, depth=depth).to(DEVICE)
+        model = init_model(model_dict).to(DEVICE)
         model.load_state_dict(model_dict)
         model.half()
         model.eval()

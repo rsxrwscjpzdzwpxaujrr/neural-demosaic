@@ -15,7 +15,7 @@ from torchmetrics.image import StructuralSimilarityIndexMeasure
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.utils import apply_approximate_wb
 from src.cfa import XTRANS_PATTERN, get_mosaic_arr
-from src.models import PackedXTransNet
+from src.models import PackedConstraintXTransNet
 from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
 from src.plot import Plot
 
@@ -294,7 +294,8 @@ def main():
 
     loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
                         prefetch_factor=10, persistent_workers=True, shuffle=False)
-    non_compiled_model = PackedXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
+    non_compiled_model = PackedConstraintXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
+
     model = torch.compile(non_compiled_model)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     sched = torch.optim.lr_scheduler.SequentialLR(

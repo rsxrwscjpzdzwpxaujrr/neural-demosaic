@@ -1,7 +1,7 @@
 import numpy as np
 
 # Canonical patterns (R=0, G=1, B=2)
-XTRANS_PATTERN = np.array([
+XTRANS_PATTERN_OLD = np.array([
     [0, 2, 1, 2, 0, 1],
     [1, 1, 0, 1, 1, 2],
     [1, 1, 2, 1, 1, 0],
@@ -10,7 +10,7 @@ XTRANS_PATTERN = np.array([
     [1, 1, 0, 1, 1, 2],
 ], dtype=np.int32)
 
-XTRANS_PATTERN = np.ascontiguousarray(np.roll(XTRANS_PATTERN, (1, 2), axis=(0, 1)))
+XTRANS_PATTERN = np.ascontiguousarray(np.roll(XTRANS_PATTERN_OLD, (1, 2), axis=(0, 1)))
 
 BAYER_PATTERN = np.array([
     [0, 1],
