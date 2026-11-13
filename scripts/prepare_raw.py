@@ -118,7 +118,7 @@ def downscale(rgb: np.ndarray, factor: int) -> np.ndarray:
     return np.stack(planes, axis=-1)
 
 
-def to_patches(img, P=120):
+def to_patches(img, P):
     h, w, c = img.shape
     nh, nw = h // P, w // P
     oy = (h - nh * P) // 2
@@ -220,7 +220,7 @@ def main():
 
             print(f"  downscaled to {rgb.shape[0]}x{rgb.shape[1]} for factor {str_factor} ({factor})")
 
-            patches, (oy, ox) = to_patches(rgb)
+            patches, (oy, ox) = to_patches(rgb, args.patch)
 
             patch_i = 0
 
