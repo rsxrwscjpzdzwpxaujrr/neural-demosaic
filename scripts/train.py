@@ -350,15 +350,11 @@ def main():
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
 
-        stats = dict()
-
         # loss = F.l1_loss(out, gt)
         scale = gt.mean(dim=(1, 2, 3)).detach().clamp(min=2 ** -7)
         loss = F.l1_loss(out, gt, reduction='none').mean(dim=(1, 2, 3)) / scale
 
-        for i in range(0, BATCH):
-            loss_i = loss[i].item()
-            stats[gid] = loss_i
+        stats = dict(zip(gid, loss.detach().cpu().tolist()))
 
         loss[loss > args.discard_threshold] = 0.0
 
