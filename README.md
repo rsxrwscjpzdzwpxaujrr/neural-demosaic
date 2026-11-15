@@ -21,7 +21,7 @@ uv sync
 uv run scripts/prepare_raw.py path/to/raws/ -o data/gt
 ```
 
-This superpixel-demosaics each file and Lanczos-downscales in linear space to suppress aliasing. Output: `data/gt/*.npy` (float16 linear RGB).
+This superpixel-demosaics each file and area-downscales in linear space to suppress aliasing. Output: `data/gt/*.npy` (float16 linear RGB).
 
 **2. Train:**
 
