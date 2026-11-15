@@ -1,11 +1,11 @@
 # Neural Demosaic
 ![comparison image](assets/comparison.png)
 
-**PackedXTransNet** — a neural demosaicing model for Fujifilm X-Trans sensors.
+**PackedConstraintXTransNet** — a neural demosaicing model for Fujifilm X-Trans sensors, forked from danylo-kelvich's [neural-demosaic](https://github.com/danylo-kelvich/neural-demosaic) project and some architecture and training improvements.
 
-X-Trans uses a 6×6 color filter array instead of the standard 2×2 Bayer pattern, which is more complex to demosaic than Bayer. This model learns to invert the mosaicing directly, outperforming Markesteijn in PSNR while demosaicing a 40MP RAW file in **0.6 seconds on M1 Pro** (CoreML).
+X-Trans uses a 6×6 color filter array instead of the standard 2×2 Bayer pattern, which is more complex to demosaic than Bayer. This model learns to estimate the missing 2 channels for each pixel, outperforming Markesteijn and danylo-kelvich's implementation in PSNR. Constraining it to estimate only the 2 missing channels ensures we preserve the existing data while estimating only the missing part so we don't accidentaly "enhance" it.
 
-Trained on a personal dataset of ~100 RAW files. A full training run takes 10–20 minutes on a Mac.
+Trained on a mix of MIT-Adobe 5K dataset and my personal RAW pictures with an RTX 3060 eGPU.
 
 ## Setup
 
@@ -43,7 +43,10 @@ You can get a sample raw file [here](https://www.dpreview.com/reviews/image-comp
 
 ## Future work
 
-- Synthetic data to improve high-frequency detail reproduction
+- A script converting demosaiced results to .DNG files so they can be used in RAW editing software
+- Fixing artifacts on PDAF pixels
+- A more complex neural net architecture
+- Simulating chromatic aberration for training samples
 - Joint demosaic + denoise via noise-augmented training
 
 
