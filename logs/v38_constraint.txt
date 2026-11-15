@@ -1,0 +1,271 @@
+name v38_constraint
+width 80
+depth 32
+iters 50000
+patch 144
+batch 48
+lr 0.000425
+val_since 0.0
+faststart False
+plt True
+finetune None
+discard_threshold 0.2
+ez_discard_threshold 0.015
+noise False
+
+46564 train images
+20 val images
+Evaluating base model...
+Bilinear val PSNR: 38.07dB, SSIM: 0.9106, train PSNR: 41.20dB, SSIM: 0.9111
+Evaluating Markesteijn...
+Markesteijn val PSNR: 41.94dB, SSIM: 0.9620, train PSNR: 43.08dB, SSIM: 0.9484
+step 250/50000  loss 0.04744  lr 4.25e-04  discarded ez: 1.0%, hard: 0.575%  112 img/s
+step 500/50000  loss 0.03937  lr 4.25e-04  discarded ez: 3.5%, hard: 0.150%  128 img/s
+step 750/50000  loss 0.03542  lr 4.25e-04  discarded ez: 5.7%, hard: 0.092%  123 img/s
+step 1000/50000  loss 0.03255  lr 4.25e-04  discarded ez: 7.7%, hard: 0.042%  122 img/s
+val PSNR: 45.80dB, SSIM: 0.9826 train PSNR: 47.71dB, SSIM: 0.9767 *
+step 1250/50000  loss 0.03061  lr 4.25e-04  discarded ez: 9.5%, hard: 0.033%  113 img/s
+step 1500/50000  loss 0.03007  lr 4.24e-04  discarded ez: 10.6%, hard: 0.008%  120 img/s
+step 1750/50000  loss 0.02914  lr 4.24e-04  discarded ez: 11.4%, hard: 0.017%  116 img/s
+step 2000/50000  loss 0.02903  lr 4.24e-04  discarded ez: 12.4%, hard: 0.008%  117 img/s
+val PSNR: 47.60dB, SSIM: 0.9869 train PSNR: 49.01dB, SSIM: 0.9815 *
+step 2250/50000  loss 0.02795  lr 4.23e-04  discarded ez: 12.5%, hard: 0.025%  107 img/s
+step 2500/50000  loss 0.02745  lr 4.23e-04  discarded ez: 13.1%, hard: 0.017%  118 img/s
+step 2750/50000  loss 0.02723  lr 4.22e-04  discarded ez: 13.0%, hard: 0.000%  114 img/s
+step 3000/50000  loss 0.02683  lr 4.22e-04  discarded ez: 13.3%, hard: 0.033%  102 img/s
+val PSNR: 48.50dB, SSIM: 0.9889 train PSNR: 49.80dB, SSIM: 0.9838 *
+step 3250/50000  loss 0.02667  lr 4.21e-04  discarded ez: 13.6%, hard: 0.008%  86 img/s
+step 3500/50000  loss 0.02652  lr 4.21e-04  discarded ez: 13.9%, hard: 0.000%  129 img/s
+step 3750/50000  loss 0.02633  lr 4.20e-04  discarded ez: 13.6%, hard: 0.017%  126 img/s
+step 4000/50000  loss 0.02613  lr 4.19e-04  discarded ez: 14.6%, hard: 0.008%  127 img/s
+val PSNR: 48.99dB, SSIM: 0.9901 train PSNR: 50.18dB, SSIM: 0.9852 *
+step 4250/50000  loss 0.02599  lr 4.18e-04  discarded ez: 14.1%, hard: 0.017%  119 img/s
+step 4500/50000  loss 0.02564  lr 4.17e-04  discarded ez: 14.5%, hard: 0.000%  125 img/s
+step 4750/50000  loss 0.02591  lr 4.16e-04  discarded ez: 15.2%, hard: 0.008%  121 img/s
+step 5000/50000  loss 0.02542  lr 4.16e-04  discarded ez: 14.8%, hard: 0.017%  118 img/s
+val PSNR: 49.30dB, SSIM: 0.9908 train PSNR: 50.41dB, SSIM: 0.9859 *
+step 5250/50000  loss 0.02543  lr 4.14e-04  discarded ez: 15.0%, hard: 0.008%  116 img/s
+step 5500/50000  loss 0.02526  lr 4.13e-04  discarded ez: 15.4%, hard: 0.000%  113 img/s
+step 5750/50000  loss 0.02499  lr 4.12e-04  discarded ez: 15.3%, hard: 0.000%  104 img/s
+step 6000/50000  loss 0.02500  lr 4.11e-04  discarded ez: 15.2%, hard: 0.000%  102 img/s
+val PSNR: 49.40dB, SSIM: 0.9909 train PSNR: 50.52dB, SSIM: 0.9862 *
+step 6250/50000  loss 0.03823  lr 4.10e-04  discarded ez: 15.5%, hard: 1.517%  87 img/s
+step 6500/50000  loss 0.02960  lr 4.09e-04  discarded ez: 16.4%, hard: 0.025%  93 img/s
+step 6750/50000  loss 0.02539  lr 4.07e-04  discarded ez: 16.1%, hard: 0.008%  93 img/s
+step 7000/50000  loss 0.02481  lr 4.06e-04  discarded ez: 15.8%, hard: 0.000%  108 img/s
+val PSNR: 49.52dB, SSIM: 0.9912 train PSNR: 50.65dB, SSIM: 0.9866 *
+step 7250/50000  loss 0.02475  lr 4.05e-04  discarded ez: 15.8%, hard: 0.000%  112 img/s
+step 7500/50000  loss 0.02478  lr 4.03e-04  discarded ez: 15.7%, hard: 0.000%  101 img/s
+step 7750/50000  loss 0.02467  lr 4.02e-04  discarded ez: 16.1%, hard: 0.008%  100 img/s
+step 8000/50000  loss 0.02433  lr 4.00e-04  discarded ez: 15.2%, hard: 0.000%  90 img/s
+val PSNR: 49.63dB, SSIM: 0.9911 train PSNR: 50.68dB, SSIM: 0.9865 *
+step 8250/50000  loss 0.02459  lr 3.98e-04  discarded ez: 15.7%, hard: 0.008%  90 img/s
+step 8500/50000  loss 0.02420  lr 3.97e-04  discarded ez: 16.1%, hard: 0.008%  110 img/s
+step 8750/50000  loss 0.02458  lr 3.95e-04  discarded ez: 16.2%, hard: 0.000%  117 img/s
+step 9000/50000  loss 0.02413  lr 3.93e-04  discarded ez: 16.2%, hard: 0.000%  104 img/s
+val PSNR: 49.80dB, SSIM: 0.9916 train PSNR: 50.85dB, SSIM: 0.9871 *
+step 9250/50000  loss 0.02458  lr 3.92e-04  discarded ez: 16.4%, hard: 0.000%  85 img/s
+step 9500/50000  loss 0.02427  lr 3.90e-04  discarded ez: 16.4%, hard: 0.000%  89 img/s
+step 9750/50000  loss 0.02418  lr 3.88e-04  discarded ez: 16.9%, hard: 0.017%  102 img/s
+step 10000/50000  loss 0.02406  lr 3.86e-04  discarded ez: 16.7%, hard: 0.000%  100 img/s
+val PSNR: 49.81dB, SSIM: 0.9916 train PSNR: 50.87dB, SSIM: 0.9871 *
+step 10250/50000  loss 0.02419  lr 3.84e-04  discarded ez: 16.2%, hard: 0.000%  78 img/s
+step 10500/50000  loss 0.02423  lr 3.82e-04  discarded ez: 15.9%, hard: 0.000%  102 img/s
+step 10750/50000  loss 0.02431  lr 3.80e-04  discarded ez: 16.9%, hard: 0.008%  127 img/s
+step 11000/50000  loss 0.02399  lr 3.78e-04  discarded ez: 16.0%, hard: 0.008%  127 img/s
+val PSNR: 49.88dB, SSIM: 0.9917 train PSNR: 50.93dB, SSIM: 0.9872 *
+step 11250/50000  loss 0.02400  lr 3.76e-04  discarded ez: 16.4%, hard: 0.000%  118 img/s
+step 11500/50000  loss 0.02388  lr 3.74e-04  discarded ez: 16.3%, hard: 0.000%  106 img/s
+step 11750/50000  loss 0.02410  lr 3.71e-04  discarded ez: 15.9%, hard: 0.017%  99 img/s
+step 12000/50000  loss 0.02400  lr 3.69e-04  discarded ez: 15.8%, hard: 0.000%  86 img/s
+val PSNR: 49.95dB, SSIM: 0.9918 train PSNR: 50.96dB, SSIM: 0.9873 *
+step 12250/50000  loss 0.02396  lr 3.67e-04  discarded ez: 16.5%, hard: 0.000%  87 img/s
+step 12500/50000  loss 0.02372  lr 3.65e-04  discarded ez: 16.6%, hard: 0.008%  105 img/s
+step 12750/50000  loss 0.02387  lr 3.62e-04  discarded ez: 16.6%, hard: 0.000%  98 img/s
+step 13000/50000  loss 0.02386  lr 3.60e-04  discarded ez: 16.5%, hard: 0.000%  97 img/s
+val PSNR: 50.05dB, SSIM: 0.9919 train PSNR: 51.06dB, SSIM: 0.9875 *
+step 13250/50000  loss 0.02379  lr 3.57e-04  discarded ez: 16.8%, hard: 0.017%  81 img/s
+step 13500/50000  loss 0.02390  lr 3.55e-04  discarded ez: 16.6%, hard: 0.000%  97 img/s
+step 13750/50000  loss 0.02393  lr 3.52e-04  discarded ez: 16.5%, hard: 0.008%  76 img/s
+step 14000/50000  loss 0.02380  lr 3.50e-04  discarded ez: 17.0%, hard: 0.000%  68 img/s
+val PSNR: 50.13dB, SSIM: 0.9921 train PSNR: 51.12dB, SSIM: 0.9877 *
+step 14250/50000  loss 0.02343  lr 3.47e-04  discarded ez: 16.6%, hard: 0.000%  80 img/s
+step 14500/50000  loss 0.02370  lr 3.45e-04  discarded ez: 16.8%, hard: 0.000%  105 img/s
+step 14750/50000  loss 0.02389  lr 3.42e-04  discarded ez: 16.8%, hard: 0.000%  115 img/s
+step 15000/50000  loss 0.02355  lr 3.39e-04  discarded ez: 16.1%, hard: 0.000%  103 img/s
+val PSNR: 50.19dB, SSIM: 0.9922 train PSNR: 51.16dB, SSIM: 0.9878 *
+step 15250/50000  loss 0.02394  lr 3.37e-04  discarded ez: 16.5%, hard: 0.008%  96 img/s
+step 15500/50000  loss 0.02348  lr 3.34e-04  discarded ez: 16.7%, hard: 0.017%  100 img/s
+step 15750/50000  loss 0.02354  lr 3.31e-04  discarded ez: 16.9%, hard: 0.000%  102 img/s
+step 16000/50000  loss 0.02349  lr 3.28e-04  discarded ez: 16.5%, hard: 0.000%  92 img/s
+val PSNR: 50.16dB, SSIM: 0.9921 train PSNR: 51.14dB, SSIM: 0.9878
+step 16250/50000  loss 0.02360  lr 3.25e-04  discarded ez: 16.9%, hard: 0.000%  77 img/s
+step 16500/50000  loss 0.02335  lr 3.23e-04  discarded ez: 16.5%, hard: 0.017%  97 img/s
+step 16750/50000  loss 0.02325  lr 3.20e-04  discarded ez: 16.6%, hard: 0.000%  89 img/s
+step 17000/50000  loss 0.02338  lr 3.17e-04  discarded ez: 16.1%, hard: 0.000%  99 img/s
+val PSNR: 50.33dB, SSIM: 0.9924 train PSNR: 51.27dB, SSIM: 0.9881 *
+step 17250/50000  loss 0.02345  lr 3.14e-04  discarded ez: 17.3%, hard: 0.008%  81 img/s
+step 17500/50000  loss 0.02330  lr 3.11e-04  discarded ez: 17.0%, hard: 0.000%  81 img/s
+step 17750/50000  loss 0.02334  lr 3.08e-04  discarded ez: 17.1%, hard: 0.000%  93 img/s
+step 18000/50000  loss 0.02325  lr 3.05e-04  discarded ez: 16.5%, hard: 0.000%  94 img/s
+val PSNR: 50.35dB, SSIM: 0.9925 train PSNR: 51.33dB, SSIM: 0.9882 *
+step 18250/50000  loss 0.02316  lr 3.02e-04  discarded ez: 17.0%, hard: 0.000%  104 img/s
+step 18500/50000  loss 0.02329  lr 2.99e-04  discarded ez: 17.2%, hard: 0.008%  116 img/s
+step 18750/50000  loss 0.02323  lr 2.96e-04  discarded ez: 16.1%, hard: 0.000%  117 img/s
+step 19000/50000  loss 0.02332  lr 2.93e-04  discarded ez: 16.8%, hard: 0.017%  117 img/s
+val PSNR: 50.35dB, SSIM: 0.9924 train PSNR: 51.30dB, SSIM: 0.9882
+step 19250/50000  loss 0.02327  lr 2.90e-04  discarded ez: 16.3%, hard: 0.000%  109 img/s
+step 19500/50000  loss 0.02320  lr 2.86e-04  discarded ez: 17.1%, hard: 0.000%  119 img/s
+step 19750/50000  loss 0.02324  lr 2.83e-04  discarded ez: 16.8%, hard: 0.000%  105 img/s
+step 20000/50000  loss 0.02316  lr 2.80e-04  discarded ez: 17.1%, hard: 0.000%  102 img/s
+val PSNR: 50.40dB, SSIM: 0.9926 train PSNR: 51.38dB, SSIM: 0.9883 *
+step 20250/50000  loss 0.02297  lr 2.77e-04  discarded ez: 17.1%, hard: 0.000%  92 img/s
+step 20500/50000  loss 0.02289  lr 2.74e-04  discarded ez: 17.3%, hard: 0.000%  85 img/s
+step 20750/50000  loss 0.02300  lr 2.70e-04  discarded ez: 16.7%, hard: 0.008%  95 img/s
+step 21000/50000  loss 0.02295  lr 2.67e-04  discarded ez: 16.7%, hard: 0.008%  94 img/s
+val PSNR: 50.43dB, SSIM: 0.9925 train PSNR: 51.40dB, SSIM: 0.9883 *
+step 21250/50000  loss 0.02321  lr 2.64e-04  discarded ez: 17.3%, hard: 0.000%  79 img/s
+step 21500/50000  loss 0.02313  lr 2.61e-04  discarded ez: 16.9%, hard: 0.000%  87 img/s
+step 21750/50000  loss 0.02302  lr 2.57e-04  discarded ez: 16.7%, hard: 0.000%  97 img/s
+step 22000/50000  loss 0.02298  lr 2.54e-04  discarded ez: 17.0%, hard: 0.008%  88 img/s
+val PSNR: 50.46dB, SSIM: 0.9926 train PSNR: 51.43dB, SSIM: 0.9884 *
+step 22250/50000  loss 0.02301  lr 2.51e-04  discarded ez: 17.1%, hard: 0.008%  86 img/s
+step 22500/50000  loss 0.02295  lr 2.48e-04  discarded ez: 16.6%, hard: 0.000%  96 img/s
+step 22750/50000  loss 0.02296  lr 2.44e-04  discarded ez: 16.9%, hard: 0.000%  102 img/s
+step 23000/50000  loss 0.02291  lr 2.41e-04  discarded ez: 16.8%, hard: 0.008%  85 img/s
+val PSNR: 50.28dB, SSIM: 0.9922 train PSNR: 51.26dB, SSIM: 0.9879
+step 23250/50000  loss 0.02308  lr 2.38e-04  discarded ez: 17.1%, hard: 0.000%  84 img/s
+step 23500/50000  loss 0.02293  lr 2.34e-04  discarded ez: 17.7%, hard: 0.000%  95 img/s
+step 23750/50000  loss 0.02272  lr 2.31e-04  discarded ez: 17.3%, hard: 0.000%  107 img/s
+step 24000/50000  loss 0.02287  lr 2.28e-04  discarded ez: 17.3%, hard: 0.000%  112 img/s
+val PSNR: 50.54dB, SSIM: 0.9927 train PSNR: 51.45dB, SSIM: 0.9884 *
+step 24250/50000  loss 0.02288  lr 2.24e-04  discarded ez: 17.4%, hard: 0.000%  100 img/s
+step 24500/50000  loss 0.02297  lr 2.21e-04  discarded ez: 16.8%, hard: 0.000%  120 img/s
+step 24750/50000  loss 0.02279  lr 2.18e-04  discarded ez: 17.4%, hard: 0.000%  116 img/s
+step 25000/50000  loss 0.02279  lr 2.14e-04  discarded ez: 17.1%, hard: 0.000%  118 img/s
+val PSNR: 50.49dB, SSIM: 0.9925 train PSNR: 51.41dB, SSIM: 0.9883
+step 25250/50000  loss 0.02261  lr 2.11e-04  discarded ez: 16.8%, hard: 0.000%  106 img/s
+step 25500/50000  loss 0.02267  lr 2.07e-04  discarded ez: 17.1%, hard: 0.000%  115 img/s
+step 25750/50000  loss 0.02278  lr 2.04e-04  discarded ez: 16.7%, hard: 0.000%  113 img/s
+step 26000/50000  loss 0.02287  lr 2.01e-04  discarded ez: 16.9%, hard: 0.000%  117 img/s
+val PSNR: 50.51dB, SSIM: 0.9926 train PSNR: 51.45dB, SSIM: 0.9885
+step 26250/50000  loss 0.02290  lr 1.97e-04  discarded ez: 17.6%, hard: 0.000%  102 img/s
+step 26500/50000  loss 0.02263  lr 1.94e-04  discarded ez: 17.6%, hard: 0.008%  118 img/s
+step 26750/50000  loss 0.02284  lr 1.91e-04  discarded ez: 17.3%, hard: 0.000%  81 img/s
+step 27000/50000  loss 0.02257  lr 1.87e-04  discarded ez: 17.1%, hard: 0.000%  117 img/s
+val PSNR: 50.68dB, SSIM: 0.9928 train PSNR: 51.57dB, SSIM: 0.9887 *
+step 27250/50000  loss 0.02290  lr 1.84e-04  discarded ez: 17.0%, hard: 0.000%  103 img/s
+step 27500/50000  loss 0.02278  lr 1.81e-04  discarded ez: 16.9%, hard: 0.000%  124 img/s
+step 27750/50000  loss 0.02270  lr 1.77e-04  discarded ez: 17.3%, hard: 0.000%  121 img/s
+step 28000/50000  loss 0.02263  lr 1.74e-04  discarded ez: 17.4%, hard: 0.008%  111 img/s
+val PSNR: 50.70dB, SSIM: 0.9929 train PSNR: 51.60dB, SSIM: 0.9888 *
+step 28250/50000  loss 0.02259  lr 1.71e-04  discarded ez: 17.3%, hard: 0.000%  100 img/s
+step 28500/50000  loss 0.02241  lr 1.68e-04  discarded ez: 17.0%, hard: 0.000%  109 img/s
+step 28750/50000  loss 0.02238  lr 1.64e-04  discarded ez: 17.4%, hard: 0.008%  104 img/s
+step 29000/50000  loss 0.02253  lr 1.61e-04  discarded ez: 17.1%, hard: 0.000%  103 img/s
+val PSNR: 50.71dB, SSIM: 0.9929 train PSNR: 51.62dB, SSIM: 0.9888 *
+step 29250/50000  loss 0.02268  lr 1.58e-04  discarded ez: 17.3%, hard: 0.000%  108 img/s
+step 29500/50000  loss 0.02241  lr 1.55e-04  discarded ez: 16.7%, hard: 0.008%  112 img/s
+step 29750/50000  loss 0.02251  lr 1.51e-04  discarded ez: 16.8%, hard: 0.000%  112 img/s
+step 30000/50000  loss 0.02257  lr 1.48e-04  discarded ez: 17.2%, hard: 0.000%  112 img/s
+val PSNR: 50.76dB, SSIM: 0.9930 train PSNR: 51.66dB, SSIM: 0.9889 *
+step 30250/50000  loss 0.02232  lr 1.45e-04  discarded ez: 16.8%, hard: 0.008%  104 img/s
+step 30500/50000  loss 0.02240  lr 1.42e-04  discarded ez: 17.0%, hard: 0.000%  111 img/s
+step 30750/50000  loss 0.02251  lr 1.39e-04  discarded ez: 17.7%, hard: 0.000%  112 img/s
+step 31000/50000  loss 0.02246  lr 1.35e-04  discarded ez: 17.5%, hard: 0.008%  112 img/s
+val PSNR: 50.74dB, SSIM: 0.9930 train PSNR: 51.66dB, SSIM: 0.9889
+step 31250/50000  loss 0.02235  lr 1.32e-04  discarded ez: 17.4%, hard: 0.000%  105 img/s
+step 31500/50000  loss 0.02217  lr 1.29e-04  discarded ez: 18.0%, hard: 0.000%  108 img/s
+step 31750/50000  loss 0.02232  lr 1.26e-04  discarded ez: 17.5%, hard: 0.000%  114 img/s
+step 32000/50000  loss 0.02238  lr 1.23e-04  discarded ez: 17.4%, hard: 0.000%  114 img/s
+val PSNR: 50.77dB, SSIM: 0.9930 train PSNR: 51.68dB, SSIM: 0.9889 *
+step 32250/50000  loss 0.02237  lr 1.20e-04  discarded ez: 17.6%, hard: 0.000%  108 img/s
+step 32500/50000  loss 0.02226  lr 1.17e-04  discarded ez: 17.5%, hard: 0.000%  113 img/s
+step 32750/50000  loss 0.02227  lr 1.14e-04  discarded ez: 17.8%, hard: 0.000%  114 img/s
+step 33000/50000  loss 0.02226  lr 1.11e-04  discarded ez: 17.3%, hard: 0.000%  92 img/s
+val PSNR: 50.82dB, SSIM: 0.9931 train PSNR: 51.73dB, SSIM: 0.9891 *
+step 33250/50000  loss 0.02223  lr 1.08e-04  discarded ez: 17.1%, hard: 0.000%  94 img/s
+step 33500/50000  loss 0.02227  lr 1.05e-04  discarded ez: 17.5%, hard: 0.000%  98 img/s
+step 33750/50000  loss 0.02222  lr 1.02e-04  discarded ez: 17.5%, hard: 0.008%  98 img/s
+step 34000/50000  loss 0.02228  lr 9.95e-05  discarded ez: 17.4%, hard: 0.000%  88 img/s
+val PSNR: 50.81dB, SSIM: 0.9931 train PSNR: 51.72dB, SSIM: 0.9891
+step 34250/50000  loss 0.02226  lr 9.67e-05  discarded ez: 17.2%, hard: 0.000%  85 img/s
+step 34500/50000  loss 0.02237  lr 9.39e-05  discarded ez: 17.5%, hard: 0.000%  128 img/s
+step 34750/50000  loss 0.02216  lr 9.11e-05  discarded ez: 17.0%, hard: 0.000%  128 img/s
+step 35000/50000  loss 0.02228  lr 8.84e-05  discarded ez: 17.7%, hard: 0.000%  128 img/s
+val PSNR: 50.85dB, SSIM: 0.9931 train PSNR: 51.74dB, SSIM: 0.9891 *
+step 35250/50000  loss 0.02214  lr 8.57e-05  discarded ez: 17.4%, hard: 0.000%  119 img/s
+step 35500/50000  loss 0.02217  lr 8.30e-05  discarded ez: 17.4%, hard: 0.000%  128 img/s
+step 35750/50000  loss 0.02207  lr 8.04e-05  discarded ez: 17.2%, hard: 0.000%  128 img/s
+step 36000/50000  loss 0.02205  lr 7.78e-05  discarded ez: 17.4%, hard: 0.000%  128 img/s
+val PSNR: 50.86dB, SSIM: 0.9931 train PSNR: 51.76dB, SSIM: 0.9891 *
+step 36250/50000  loss 0.02201  lr 7.52e-05  discarded ez: 17.3%, hard: 0.008%  119 img/s
+step 36500/50000  loss 0.02202  lr 7.27e-05  discarded ez: 17.3%, hard: 0.008%  128 img/s
+step 36750/50000  loss 0.02194  lr 7.01e-05  discarded ez: 17.2%, hard: 0.000%  128 img/s
+step 37000/50000  loss 0.02200  lr 6.77e-05  discarded ez: 17.5%, hard: 0.000%  128 img/s
+val PSNR: 50.89dB, SSIM: 0.9932 train PSNR: 51.79dB, SSIM: 0.9892 *
+step 37250/50000  loss 0.02200  lr 6.52e-05  discarded ez: 17.6%, hard: 0.008%  120 img/s
+step 37500/50000  loss 0.02203  lr 6.28e-05  discarded ez: 17.6%, hard: 0.008%  128 img/s
+step 37750/50000  loss 0.02220  lr 6.05e-05  discarded ez: 17.5%, hard: 0.008%  128 img/s
+step 38000/50000  loss 0.02206  lr 5.81e-05  discarded ez: 17.4%, hard: 0.000%  128 img/s
+val PSNR: 50.89dB, SSIM: 0.9932 train PSNR: 51.79dB, SSIM: 0.9892
+step 38250/50000  loss 0.02194  lr 5.59e-05  discarded ez: 17.9%, hard: 0.000%  119 img/s
+step 38500/50000  loss 0.02206  lr 5.36e-05  discarded ez: 17.3%, hard: 0.000%  128 img/s
+step 38750/50000  loss 0.02193  lr 5.14e-05  discarded ez: 18.1%, hard: 0.000%  128 img/s
+step 39000/50000  loss 0.02220  lr 4.92e-05  discarded ez: 17.3%, hard: 0.000%  128 img/s
+val PSNR: 50.93dB, SSIM: 0.9932 train PSNR: 51.82dB, SSIM: 0.9893 *
+step 39250/50000  loss 0.02198  lr 4.71e-05  discarded ez: 17.4%, hard: 0.000%  119 img/s
+step 39500/50000  loss 0.02196  lr 4.50e-05  discarded ez: 17.5%, hard: 0.008%  127 img/s
+step 39750/50000  loss 0.02208  lr 4.30e-05  discarded ez: 17.3%, hard: 0.008%  128 img/s
+step 40000/50000  loss 0.02210  lr 4.10e-05  discarded ez: 17.0%, hard: 0.000%  128 img/s
+val PSNR: 50.91dB, SSIM: 0.9932 train PSNR: 51.81dB, SSIM: 0.9892
+step 40250/50000  loss 0.02201  lr 3.90e-05  discarded ez: 17.5%, hard: 0.000%  119 img/s
+step 40500/50000  loss 0.02188  lr 3.71e-05  discarded ez: 17.4%, hard: 0.000%  128 img/s
+step 40750/50000  loss 0.02195  lr 3.52e-05  discarded ez: 17.5%, hard: 0.000%  128 img/s
+step 41000/50000  loss 0.02173  lr 3.34e-05  discarded ez: 17.2%, hard: 0.000%  127 img/s
+val PSNR: 50.95dB, SSIM: 0.9932 train PSNR: 51.85dB, SSIM: 0.9893 *
+step 41250/50000  loss 0.02179  lr 3.16e-05  discarded ez: 17.3%, hard: 0.000%  119 img/s
+step 41500/50000  loss 0.02178  lr 2.99e-05  discarded ez: 17.4%, hard: 0.000%  128 img/s
+step 41750/50000  loss 0.02202  lr 2.82e-05  discarded ez: 17.2%, hard: 0.000%  128 img/s
+step 42000/50000  loss 0.02195  lr 2.65e-05  discarded ez: 17.7%, hard: 0.000%  128 img/s
+val PSNR: 50.96dB, SSIM: 0.9932 train PSNR: 51.86dB, SSIM: 0.9893 *
+step 42250/50000  loss 0.02212  lr 2.49e-05  discarded ez: 17.5%, hard: 0.000%  119 img/s
+step 42500/50000  loss 0.02179  lr 2.34e-05  discarded ez: 17.0%, hard: 0.000%  127 img/s
+step 42750/50000  loss 0.02197  lr 2.19e-05  discarded ez: 17.4%, hard: 0.000%  128 img/s
+step 43000/50000  loss 0.02186  lr 2.04e-05  discarded ez: 17.4%, hard: 0.000%  127 img/s
+val PSNR: 50.96dB, SSIM: 0.9932 train PSNR: 51.88dB, SSIM: 0.9894 *
+step 43250/50000  loss 0.02190  lr 1.90e-05  discarded ez: 17.6%, hard: 0.000%  119 img/s
+step 43500/50000  loss 0.02184  lr 1.77e-05  discarded ez: 17.8%, hard: 0.000%  128 img/s
+step 43750/50000  loss 0.02193  lr 1.63e-05  discarded ez: 17.2%, hard: 0.000%  128 img/s
+step 44000/50000  loss 0.02191  lr 1.51e-05  discarded ez: 18.0%, hard: 0.000%  128 img/s
+val PSNR: 50.97dB, SSIM: 0.9933 train PSNR: 51.88dB, SSIM: 0.9894 *
+step 44250/50000  loss 0.02186  lr 1.39e-05  discarded ez: 17.3%, hard: 0.000%  119 img/s
+step 44500/50000  loss 0.02182  lr 1.27e-05  discarded ez: 17.6%, hard: 0.008%  127 img/s
+step 44750/50000  loss 0.02205  lr 1.16e-05  discarded ez: 17.9%, hard: 0.008%  128 img/s
+step 45000/50000  loss 0.02202  lr 1.05e-05  discarded ez: 17.7%, hard: 0.008%  128 img/s
+val PSNR: 50.98dB, SSIM: 0.9933 train PSNR: 51.88dB, SSIM: 0.9894 *
+step 45250/50000  loss 0.02193  lr 9.49e-06  discarded ez: 17.6%, hard: 0.000%  119 img/s
+step 45500/50000  loss 0.02166  lr 8.52e-06  discarded ez: 17.2%, hard: 0.000%  127 img/s
+step 45750/50000  loss 0.02168  lr 7.61e-06  discarded ez: 17.2%, hard: 0.000%  128 img/s
+step 46000/50000  loss 0.02184  lr 6.74e-06  discarded ez: 17.0%, hard: 0.000%  128 img/s
+val PSNR: 50.99dB, SSIM: 0.9933 train PSNR: 51.89dB, SSIM: 0.9894 *
+step 46250/50000  loss 0.02181  lr 5.93e-06  discarded ez: 17.4%, hard: 0.000%  119 img/s
+step 46500/50000  loss 0.02177  lr 5.17e-06  discarded ez: 17.1%, hard: 0.000%  127 img/s
+step 46750/50000  loss 0.02201  lr 4.46e-06  discarded ez: 17.4%, hard: 0.000%  128 img/s
+step 47000/50000  loss 0.02185  lr 3.80e-06  discarded ez: 16.9%, hard: 0.000%  128 img/s
+val PSNR: 51.00dB, SSIM: 0.9933 train PSNR: 51.89dB, SSIM: 0.9894 *
+step 47250/50000  loss 0.02180  lr 3.20e-06  discarded ez: 17.6%, hard: 0.000%  119 img/s
+step 47500/50000  loss 0.02201  lr 2.64e-06  discarded ez: 17.3%, hard: 0.000%  128 img/s
+step 47750/50000  loss 0.02183  lr 2.14e-06  discarded ez: 17.3%, hard: 0.000%  128 img/s
+step 48000/50000  loss 0.02163  lr 1.69e-06  discarded ez: 17.2%, hard: 0.000%  127 img/s
+val PSNR: 51.00dB, SSIM: 0.9933 train PSNR: 51.90dB, SSIM: 0.9894 *
+step 48250/50000  loss 0.02205  lr 1.30e-06  discarded ez: 17.9%, hard: 0.000%  119 img/s
+step 48500/50000  loss 0.02177  lr 9.53e-07  discarded ez: 17.6%, hard: 0.000%  128 img/s
+step 48750/50000  loss 0.02178  lr 6.62e-07  discarded ez: 16.7%, hard: 0.000%  128 img/s
+step 49000/50000  loss 0.02183  lr 4.24e-07  discarded ez: 17.6%, hard: 0.017%  128 img/s
+val PSNR: 51.00dB, SSIM: 0.9933 train PSNR: 51.90dB, SSIM: 0.9894 *
+step 49250/50000  loss 0.02197  lr 2.38e-07  discarded ez: 17.4%, hard: 0.000%  119 img/s
+step 49500/50000  loss 0.02182  lr 1.06e-07  discarded ez: 17.1%, hard: 0.000%  128 img/s
+step 49750/50000  loss 0.02183  lr 2.65e-08  discarded ez: 17.0%, hard: 0.000%  128 img/s
+step 50000/50000  loss 0.02171  lr 0.00e+00  discarded ez: 17.7%, hard: 0.000%  127 img/s
+val PSNR: 51.00dB, SSIM: 0.9933 train PSNR: 51.90dB, SSIM: 0.9894 *
