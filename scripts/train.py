@@ -254,6 +254,7 @@ def main():
     parser.add_argument("--faststart", action="store_true", help="Skip Markesteijn demosaic at start and limit train "
                                                                  "and val files by 10.")
     parser.add_argument("--plt", action="store_true", help="Show result pics during training.")
+    parser.add_argument("--finetune", type=str, default=None, help="Specify a model if you want to finetune.")
     parser.add_argument("--discard-threshold", type=float, default=0.3, help="Discard patches with loss above value. "
                                                                              "Default 0.3.")
     parser.add_argument("--ez-discard-threshold", type=float, default=0.009, help="Discard patches with loss below "
@@ -283,6 +284,11 @@ def main():
     )
 
     non_compiled_model = PackedConstraintXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
+
+    if args.finetune is not None:
+        model_dict = torch.load(CKPT_PATH / Path(args.finetune + '.pt'), map_location=DEVICE)
+        non_compiled_model.load_state_dict(model_dict)
+
     model = torch.compile(non_compiled_model)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     sched = torch.optim.lr_scheduler.SequentialLR(
