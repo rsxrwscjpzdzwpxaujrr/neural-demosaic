@@ -272,12 +272,10 @@ def main():
     ITERS, PATCH, BATCH, LR = args.iters, args.patch, args.batch, args.lr
     EZ_DISCARD_THRESHOLD, NOISE = args.ez_discard_threshold, args.noise
 
+    log_filename = f"{args.name}_{datetime.now(timezone.utc).isoformat(timespec="seconds")}"
+
     LOG_PATH.mkdir(exist_ok=True)
-    LOG_TXT = open(
-        LOG_PATH / f"{args.name}_{datetime.now(timezone.utc).isoformat(timespec="seconds")}.txt",
-        "w",
-        encoding="utf-8"
-    )
+    LOG_TXT = open(LOG_PATH / f"{log_filename}.txt", "w", encoding="utf-8")
 
     print = our_write
 
@@ -370,7 +368,7 @@ def main():
     if args.plt:
         plot = Plot(
             ITERS, PATCH,
-            LOG_PATH, args.name,
+            LOG_PATH, log_filename,
             args.val_since, VAL_EVERY,
             (base_val[0], base_train[0]),
             None if mark_val_score is None else mark_val_score[0]
