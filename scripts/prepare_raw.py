@@ -18,7 +18,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.cfa import XTRANS_PATTERN, BAYER_PATTERN
-from src.utils import init_model
+from src.utils import init_model, to_patches
 from scripts.inference import run_tiled
 from src.models import PackedConstraintXTransNet
 
@@ -117,17 +117,6 @@ def downscale(rgb: np.ndarray, factor: int) -> np.ndarray:
         for c in range(3)
     ]
     return np.stack(planes, axis=-1)
-
-
-def to_patches(img, P):
-    h, w, c = img.shape
-    nh, nw = h // P, w // P
-    oy = (h - nh * P) // 2
-    ox = (w - nw * P) // 2
-
-    crop = img[oy:oy + nh * P, ox:ox + nw * P]
-    patches = crop.reshape(nh, P, nw, P, c).swapaxes(1, 2).reshape(-1, P, P, 3)   # (N, P, P, c)
-    return patches, (oy, ox)
 
 
 def grad_score(y, eps=0.002):

@@ -21,6 +21,17 @@ def init_model(model_dict):
         return PackedXTransNet(XTRANS_PATTERN_OLD, width=width, depth=depth)
 
 
+def to_patches(img, size):
+    h, w, c = img.shape
+    nh, nw = h // size, w // size
+    oy = (h - nh * size) // 2
+    ox = (w - nw * size) // 2
+
+    crop = img[oy:oy + nh * size, ox:ox + nw * size]
+    patches = crop.reshape(nh, size, nw, size, c).swapaxes(1, 2).reshape(-1, size, size, 3)   # (N, P, P, c)
+    return patches, (oy, ox)
+
+
 def apply_color_matrix(rgb: np.ndarray, xyz_to_cam: np.ndarray) -> np.ndarray:
     """Convert camera RGB to sRGB via row-normalized color matrix."""
     XYZ_TO_SRGB = np.array([
@@ -60,7 +71,7 @@ def apply_approximate_wb(rgb: np.ndarray | torch.Tensor) -> np.ndarray | torch.T
     if isinstance(rgb, np.ndarray):
         return rgb * np.array(np_coeffs)
     else:
-        return rgb * torch.tensor(np_coeffs, device=rgb.device, dtype=rgb.dtype).reshape(3, 1, 1)
+        return rgb * torch.tensor(np_coeffs, device=rgb.device, dtype=rgb.dtype).reshape(1, 3, 1, 1)
 
 
 def apply_orientation(rgb: np.ndarray, orientation: str) -> np.ndarray:

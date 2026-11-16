@@ -10,10 +10,10 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
-from torchmetrics.image import StructuralSimilarityIndexMeasure
+from torchmetrics.functional.image import structural_similarity_index_measure as ssim_fn
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.utils import apply_approximate_wb
+from src.utils import apply_approximate_wb, to_patches
 from src.cfa import XTRANS_PATTERN, get_mosaic_arr
 from src.models import PackedConstraintXTransNet
 from src.demosaic_opencl import MarkesteijnOpenCLDemosaicer
@@ -36,6 +36,9 @@ EZ_DISCARD_THRESHOLD = 0.0
 FILES_EVERY = 2500
 FILE_CACHE = 8 * 1024 * 1024 * 1024
 
+MAX_EVAL_FILES = 256
+MAX_EVAL_PATCHES = 256
+
 EXPOSURE_RANGE = (-2.0, 2.0)
 ISO_GAIN_RANGE = (-3.0, 3.0)
 NOISE = False
@@ -43,8 +46,6 @@ NOISE = False
 YY, XX, CFA_INDICES = None, None, None
 
 LOG_TXT = None
-
-ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(DEVICE)
 
 
 def our_write(cls='', *args, **kwargs):
@@ -142,33 +143,35 @@ def gamma(x):
 
 
 def psnr(a, b):
-    return -10 * torch.log10(F.mse_loss(a, b)).item()
+    return -10 * torch.log10(F.mse_loss(a, b))
 
 
-def make_eval_pairs(images, size=1080):
-    assert size % 6 == 0, "size must be divisible by 6"
-    pairs = []
-    for img in images:
-        h, w, _ = img.shape
-        h_new, w_new = min(size, h // 6 * 6), min(size, w // 6 * 6)
-        y, x = (h - h_new) // 2, (w - w_new) // 2
-        crop = np.ascontiguousarray(img[y:y + h_new, x:x + w_new], dtype=np.float32)
-        gt = torch.from_numpy(crop).permute(2, 0, 1)[None]
-        yy, xx, cfa_indices = get_mosaic_arr((h_new, w_new), XTRANS_PATTERN)
-        mosaic = torch.from_numpy(crop[yy, xx, cfa_indices])[None, None]
-        pairs.append((mosaic, gt))
-    return pairs
+def make_eval_pairs(image_paths, size):
+    def pick(k, max_amount):
+        rng = np.random.default_rng(0)
+        return rng.choice(k, min(max_amount, k), replace=False)
+
+    images = (np.load(image_paths[i], mmap_mode="r") for i in pick(len(image_paths), MAX_EVAL_FILES))
+    crops = np.concatenate([to_patches(img, size)[0] for img in images])
+    crops = crops[pick(len(crops), MAX_EVAL_PATCHES)]
+
+    yy, xx, cfa_indices = get_mosaic_arr((size, size), XTRANS_PATTERN)
+
+    mosaics = torch.from_numpy(crops[:, yy, xx, cfa_indices]).unsqueeze(1).to(torch.float32)
+    gts = torch.from_numpy(crops).permute(0, 3, 1, 2).to(torch.float32)
+
+    return mosaics, gts
 
 
+@torch.no_grad()
 def calc_vals(res, tg):
     res = apply_approximate_wb(res)
     tg = apply_approximate_wb(tg)
 
-    psnr_val = psnr(res, tg)
-    # diff = percept_diff(res, gt)
-    ssim_val = ssim(gamma(res), gamma(tg)).item()
+    psnr_vals = psnr(res, tg)
+    ssim_vals = ssim_fn(gamma(res), gamma(tg), data_range=1.0, reduction="none")
 
-    return [psnr_val, ssim_val]
+    return psnr_vals.mean().item(), ssim_vals.mean().item()
 
 
 def pretty_score(psnrs: tuple) -> str:
@@ -176,30 +179,30 @@ def pretty_score(psnrs: tuple) -> str:
 
 
 @torch.no_grad()
-def evaluate(fn, pairs):
-    vals = []
+def evaluate(fn, mosaics, gts):
+    mosaics = mosaics.to(DEVICE)
+    gts = gts.to(DEVICE)
 
-    for mo, gt in tqdm(pairs, unit='pair', desc='Evaluation', delay=2.0):
-        mo = mo.to(DEVICE)
-        gt = gt.to(DEVICE)
+    res = fn(mosaics)
 
-        res = fn(mo)
-
-        vals.append(calc_vals(res, gt))
-
-    return tuple(np.mean(vals, axis=0))
+    return calc_vals(res, gts)
 
 
-def markesteijn_psnr(kernels, pairs):
+def evaluate_markesteijn(kernels, mosaics, gts):
     pattern = XTRANS_PATTERN.astype(np.uint8)
-    vals = []
-    for mo, gt in tqdm(pairs, unit='pair', desc='Markesteijn', delay=2.0):
-        mosaic = np.pad(mo[0, 0].numpy(), 18, mode="symmetric")
+    b = mosaics.shape[0]
+    size = mosaics.shape[2]
+
+    ress = torch.empty((b, 3, size, size))
+
+    for i in tqdm(range(0, b), unit='pair', desc='Markesteijn', delay=2.0):
+        mosaic = np.pad(mosaics[i, 0].numpy(), 18, mode="symmetric")
         res = kernels.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
         res = torch.from_numpy(np.ascontiguousarray(res[18:-18, 18:-18])).permute(2, 0, 1)[None]
 
-        vals.append(calc_vals(res, gt))
-    return tuple(np.mean(vals, axis=0))
+        ress[i] = res
+
+    return calc_vals(ress, gts)
 
 
 @torch.no_grad()
@@ -301,8 +304,6 @@ def main():
     print(f"Parameter count: {sum(p.numel() for p in model.parameters()):,}")
     print()
 
-    random.seed(0)
-
     train_files = sorted(GT_DIR.glob("*.npy"))
     val_files = sorted(VAL_DIR.glob("*.npy"))
 
@@ -314,12 +315,14 @@ def main():
     print(f"{len(val_files)} val images")
     print()
 
-    train_pairs = make_eval_pairs([np.load(f, mmap_mode="r") for f in random.sample(train_files, min(256, len(train_files)))])
-    val_pairs = make_eval_pairs([np.load(f, mmap_mode="r") for f in val_files])
+    random.seed(0)
+
+    train_mos, train_gts = make_eval_pairs(train_files, PATCH)
+    val_mos, val_gts = make_eval_pairs(val_files, PATCH)
 
     print('Evaluating base model...')
-    base_train = evaluate(model.baseline, train_pairs)
-    base_val = evaluate(model.baseline, val_pairs)
+    base_train = evaluate(model.baseline, train_mos, train_gts)
+    base_val = evaluate(model.baseline, val_mos, val_gts)
     print(f"Bilinear val {pretty_score(base_val)}, train {pretty_score(base_train)}")
 
     mark_val_score = None
@@ -328,8 +331,8 @@ def main():
         print('Evaluating Markesteijn...')
         os.environ.setdefault("PYOPENCL_CTX", "0")
         kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
-        mark_train_score = markesteijn_psnr(kernels, train_pairs)
-        mark_val_score = markesteijn_psnr(kernels, val_pairs)
+        mark_train_score = evaluate_markesteijn(kernels, train_mos, train_gts)
+        mark_val_score = evaluate_markesteijn(kernels, val_mos, val_gts)
         print(f"Markesteijn val {pretty_score(mark_val_score)}, train {pretty_score(mark_train_score)}")
     else:
         mark_train_score = mark_val_score = (float('-inf'), float('-inf'))
@@ -351,6 +354,8 @@ def main():
             (base_val[0], base_train[0]),
             None if mark_val_score is None else mark_val_score[0]
         )
+
+    random.seed(0)
 
     loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
                         prefetch_factor=10, persistent_workers=True, shuffle=False)
@@ -415,8 +420,8 @@ def main():
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0 or (step == 1 and args.finetune is not None):
             model.eval()
-            train_score = evaluate(model, train_pairs)
-            val_score = evaluate(model, val_pairs)
+            train_score = evaluate(model, train_mos, train_gts)
+            val_score = evaluate(model, val_mos, val_gts)
             model.train()
             marker = ""
             if val_score[0] > best_val_score[0]:
