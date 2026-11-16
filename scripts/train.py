@@ -25,6 +25,7 @@ VAL_DIR = Path("data/val")
 CKPT_PATH = Path("weights/")
 LOG_PATH = Path("logs/")
 PATCH = 0
+EVAL_PATCH = 288
 BATCH = 0
 ITERS = 0
 LR = 0.0
@@ -264,6 +265,7 @@ def main():
                                                                                   "value. Default 0.009.")
     parser.add_argument("--noise", action="store_true", help="Enable realistic noise simulation.")
     parser.add_argument("--no-compile", action="store_true", help="Disable compiling the model.")
+    parser.add_argument("--eval-only", action="store_true", help="Only evaluate. Specify --name, --width, and --depth")
     args = parser.parse_args()
 
     global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES, LOG_TXT, EZ_DISCARD_THRESHOLD, NOISE
@@ -290,6 +292,9 @@ def main():
         torch.tensor(         xx, dtype=torch.int32).to(DEVICE),
         torch.tensor(cfa_indices, dtype=torch.int32).to(DEVICE),
     )
+
+    if args.eval_only:
+        args.finetune = args.name
 
     non_compiled_model = PackedConstraintXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
 
@@ -323,7 +328,7 @@ def main():
     random.seed(0)
 
     train_mos, train_gts = make_eval_pairs(train_files, PATCH)
-    val_mos, val_gts = make_eval_pairs(val_files, PATCH)
+    val_mos, val_gts = make_eval_pairs(val_files, EVAL_PATCH)
 
     print('Evaluating base model...')
     base_train = evaluate(model.baseline, train_mos, train_gts)
@@ -341,6 +346,17 @@ def main():
         print(f"Markesteijn val {pretty_score(mark_val_score)}, train {pretty_score(mark_train_score)}")
     else:
         mark_train_score = mark_val_score = (float('-inf'), float('-inf'))
+
+    if args.eval_only:
+        print("Evaluation...")
+        model.eval()
+        val_score = evaluate(model, val_mos, val_gts)
+        train_score = evaluate(model, train_mos, train_gts)
+        model.train()
+        print(f"val {pretty_score(val_score)} train {pretty_score(train_score)}")
+
+        LOG_TXT.close()
+        return
 
     CKPT_PATH.mkdir(exist_ok=True)
     ckpt_file = CKPT_PATH / f"{args.name}.pt"
