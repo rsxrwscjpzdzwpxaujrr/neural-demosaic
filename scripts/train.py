@@ -2,9 +2,11 @@ import os
 import sys
 import time
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import random
 import argparse
+from termcolor import colored
+from strip_ansi import strip_ansi
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -53,7 +55,7 @@ def our_write(cls='', *args, **kwargs):
     tqdm.write(cls, *args, **kwargs)
 
     if LOG_TXT is not None:
-        __builtins__.print(cls, file=LOG_TXT, flush=True, *args, **kwargs)
+        __builtins__.print(strip_ansi(cls), file=LOG_TXT, flush=True, *args, **kwargs)
 
 
 class GTPatches(Dataset):
@@ -175,8 +177,13 @@ def calc_vals(res, tg):
     return psnr_vals.mean().item(), ssim_vals.mean().item()
 
 
-def pretty_score(psnrs: tuple) -> str:
-    return f"PSNR: {psnrs[0]:.2f}dB, SSIM: {psnrs[1]:.4f}"
+def bold_if(str, cond):
+    return colored(str, color="light_green" if cond else None, attrs=["bold"] if cond else [])
+
+
+def pretty_score(score: tuple, best: tuple = (float('-inf'), float('-inf'))) -> str:
+    return f"PSNR: {bold_if(f"{score[0]:.2f}dB", score[0] == best[0])}, "\
+           f"SSIM: {bold_if(f"{score[1]:.4f}", score[1] == best[1])}"
 
 
 @torch.no_grad()
@@ -272,7 +279,9 @@ def main():
     ITERS, PATCH, BATCH, LR = args.iters, args.patch, args.batch, args.lr
     EZ_DISCARD_THRESHOLD, NOISE = args.ez_discard_threshold, args.noise
 
-    log_filename = f"{args.name}_{datetime.now(timezone.utc).isoformat(timespec="seconds")}"
+    start_time = datetime.now(timezone.utc)
+
+    log_filename = f"{args.name}_{start_time.isoformat(timespec="seconds")}"
 
     LOG_PATH.mkdir(exist_ok=True)
     LOG_TXT = open(LOG_PATH / f"{log_filename}.txt", "w", encoding="utf-8")
@@ -359,7 +368,8 @@ def main():
     CKPT_PATH.mkdir(exist_ok=True)
     ckpt_file = CKPT_PATH / f"{args.name}.pt"
 
-    best_val_score = 0.0, float('-inf')
+    best_val_score = [float('-inf'), float('-inf')]
+    best_train_score = [float('-inf'), float('-inf')]
     running = 0.0
     t0 = time.time()
     max_loss = 0.0
@@ -379,8 +389,7 @@ def main():
     loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
                         prefetch_factor=10, persistent_workers=True, shuffle=False)
 
-    pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2, position=0)
-    statusbar = tqdm(total=0, bar_format="{desc}", position=1)
+    pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2)
     for step, (gt, gid) in pbar:
         mosaic, gt = preprocess(gt.to(DEVICE))
         out = model(mosaic)
@@ -433,8 +442,6 @@ def main():
 
             max_loss = max(max_loss, avg_loss)
 
-
-
         val_score = None
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0 or (step == 1 and args.finetune is not None):
@@ -442,14 +449,27 @@ def main():
             train_score = evaluate(model, train_mos, train_gts)
             val_score = evaluate(model, val_mos, val_gts)
             model.train()
-            marker = ""
-            if val_score[0] > best_val_score[0]:
-                best_val_score = val_score
-                torch.save(non_compiled_model.state_dict(), ckpt_file)
-                marker = " *"
 
-            statusbar.set_description_str(f"Last val {pretty_score(val_score)},\tBest val {pretty_score(val_score)}")
-            print(f"val {pretty_score(val_score)} train {pretty_score(train_score)}{marker}")
+            best = False
+
+            if val_score[0] > best_val_score[0]:
+                best_val_score[0] = val_score[0]
+                best = True
+
+            if val_score[1] > best_val_score[1]:
+                best_val_score[1] = val_score[1]
+
+            if train_score[0] > best_train_score[0]:
+                best_train_score[0] = train_score[0]
+
+            if train_score[1] > best_train_score[1]:
+                best_train_score[1] = train_score[1]
+
+            if best:
+                torch.save(non_compiled_model.state_dict(), ckpt_file)
+
+            print(f"val {pretty_score(val_score, best_val_score)} "
+                  f"train {pretty_score(train_score, best_train_score)}{" *" if best else ""}")
 
         pic = None
 
@@ -469,6 +489,11 @@ def main():
 
         if plot is not None:
             plot.tick(step, loss.item(), None if val_score is None else (val_score[0], train_score[0]), pic)
+
+    since_start = datetime.now(timezone.utc) - start_time
+    since_start = since_start - timedelta(microseconds=since_start.microseconds)
+
+    print(f"Time since start: {since_start}")
 
     LOG_TXT.close()
 
