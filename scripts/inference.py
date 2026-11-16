@@ -18,7 +18,7 @@ CKPT_PATH = Path("weights/")
 RAF_PATH = Path("samples/")
 OUTPUT_PATH = Path("output/")
 TILE = 288*4
-MARGIN = 12  # discarded ring around each tile; TILE - 2*MARGIN and MARGIN must be multiples of 6
+MARGIN = 48  # discarded ring around each tile; TILE - 2*MARGIN and MARGIN must be multiples of 6
 
 
 @torch.no_grad()
