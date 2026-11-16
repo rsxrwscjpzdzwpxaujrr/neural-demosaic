@@ -35,7 +35,7 @@ class Plot:
         plt.ion()
 
         self.pic_width = (self.patch * Plot.PIC_COLUMNS)
-        self.plot_width = self.pic_width * 5
+        self.plot_width = self.pic_width * 4
         self.full_width = self.pic_width + self.plot_width
 
         self.fig, (self.ax_pic, self.ax_loss) = plt.subplots(
