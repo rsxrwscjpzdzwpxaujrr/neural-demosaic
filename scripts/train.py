@@ -2,7 +2,7 @@ import os
 import sys
 import time
 from pathlib import Path
-
+from datetime import datetime, timezone
 import random
 import argparse
 import numpy as np
@@ -271,7 +271,11 @@ def main():
     EZ_DISCARD_THRESHOLD, NOISE = args.ez_discard_threshold, args.noise
 
     LOG_PATH.mkdir(exist_ok=True)
-    LOG_TXT = open(LOG_PATH / f"{args.name}.txt", "w", encoding="utf-8")
+    LOG_TXT = open(
+        LOG_PATH / f"{args.name}_{datetime.now(timezone.utc).isoformat(timespec="seconds")}.txt",
+        "w",
+        encoding="utf-8"
+    )
 
     print = our_write
 
