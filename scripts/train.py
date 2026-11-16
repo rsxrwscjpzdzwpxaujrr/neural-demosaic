@@ -334,6 +334,7 @@ def main():
     running = 0.0
     t0 = time.time()
     max_loss = 0.0
+    hard_discarded = 0
 
     if args.plt:
         plot = Plot(
@@ -356,7 +357,9 @@ def main():
 
         stats = dict(zip(gid, loss.detach().cpu().tolist()))
 
-        loss[loss > args.discard_threshold] = 0.0
+        hard_discard_mask = loss > args.discard_threshold
+        hard_discarded += hard_discard_mask.sum().item()
+        loss[hard_discard_mask] = 0.0
 
         loss = loss.mean()
 
@@ -386,8 +389,11 @@ def main():
             loader.dataset.counters.zero_()
             print(f"step {step}/{ITERS}  loss {avg_loss:.5f}  "
                   f"lr {sched.get_last_lr()[0]:.2e}  "
-                  f"ez discarded {easy_patches * 100.0:.1f}%  "
+                  f"discarded ez: {easy_patches * 100.0:.1f}%, "
+                  f"hard: {hard_discarded / (LOG_EVERY * BATCH) * 100.0:.3f}%  "
+
                   f"{LOG_EVERY * BATCH / (time.time() - t0):.0f} img/s")
+            hard_discarded = 0
             running = 0.0
             t0 = time.time()
 
