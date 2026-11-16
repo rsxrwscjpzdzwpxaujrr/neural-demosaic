@@ -263,6 +263,7 @@ def main():
     parser.add_argument("--ez-discard-threshold", type=float, default=0.009, help="Discard patches with loss below "
                                                                                   "value. Default 0.009.")
     parser.add_argument("--noise", action="store_true", help="Enable realistic noise simulation.")
+    parser.add_argument("--no-compile", action="store_true", help="Disable compiling the model.")
     args = parser.parse_args()
 
     global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES, LOG_TXT, EZ_DISCARD_THRESHOLD, NOISE
@@ -292,7 +293,7 @@ def main():
         model_dict = torch.load(CKPT_PATH / Path(args.finetune + '.pt'), map_location=DEVICE)
         non_compiled_model.load_state_dict(model_dict)
 
-    model = torch.compile(non_compiled_model)
+    model = non_compiled_model if args.no_compile else torch.compile(non_compiled_model)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     sched = torch.optim.lr_scheduler.SequentialLR(
         opt, schedulers=[
