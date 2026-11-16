@@ -282,20 +282,7 @@ def main():
         torch.tensor(cfa_indices, dtype=torch.int32).to(DEVICE),
     )
 
-    train_files = sorted(GT_DIR.glob("*.npy"))
-    val_files = sorted(VAL_DIR.glob("*.npy"))
-
-    if args.faststart:
-        train_files = train_files[:10]
-        val_files = val_files[:10]
-
-    print(f"{len(train_files)} train images")
-    print(f"{len(val_files)} val images")
-
-    loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
-                        prefetch_factor=10, persistent_workers=True, shuffle=False)
     non_compiled_model = PackedConstraintXTransNet(XTRANS_PATTERN, width=args.width, depth=args.depth).to(DEVICE)
-
     model = torch.compile(non_compiled_model)
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     sched = torch.optim.lr_scheduler.SequentialLR(
@@ -306,6 +293,17 @@ def main():
     )
 
     random.seed(0)
+
+    train_files = sorted(GT_DIR.glob("*.npy"))
+    val_files = sorted(VAL_DIR.glob("*.npy"))
+
+    if args.faststart:
+        train_files = train_files[:10]
+        val_files = val_files[:10]
+
+    print(f"{len(train_files)} train images")
+    print(f"{len(val_files)} val images")
+    print()
 
     train_pairs = make_eval_pairs([np.load(f, mmap_mode="r") for f in random.sample(train_files, min(256, len(train_files)))])
     val_pairs = make_eval_pairs([np.load(f, mmap_mode="r") for f in val_files])
@@ -344,6 +342,9 @@ def main():
             (base_val[0], base_train[0]),
             None if mark_val_score is None else mark_val_score[0]
         )
+
+    loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
+                        prefetch_factor=10, persistent_workers=True, shuffle=False)
 
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2, position=0)
     statusbar = tqdm(total=0, bar_format="{desc}", position=1)
