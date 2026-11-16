@@ -292,6 +292,9 @@ def main():
         ], milestones=[WARMUP_ITERS]
     )
 
+    print(f"Parameter count: {sum(p.numel() for p in model.parameters()):,}")
+    print()
+
     random.seed(0)
 
     train_files = sorted(GT_DIR.glob("*.npy"))
