@@ -87,6 +87,98 @@ class Logger:
             self.t0 = time.time()
 
 
+class Evaluator:
+    def __init__(self, train_mos, train_gts, val_mos, val_gts):
+        self.train_mos = train_mos
+        self.train_gts = train_gts
+        self.val_mos = val_mos
+        self.val_gts = val_gts
+
+        self.best_val = [float('-inf'), float('-inf')]
+        self.best_train = [float('-inf'), float('-inf')]
+
+    def evaluate_base(self, model):
+        print('Evaluating base model...')
+        train = Evaluator._evaluate(model.baseline, self.train_mos, self.train_gts)
+        val = Evaluator._evaluate(model.baseline, self.val_mos, self.val_gts)
+
+        return train, val
+
+    def evaluate_mark(self):
+        print('Evaluating Markesteijn...')
+        os.environ.setdefault("PYOPENCL_CTX", "0")
+        kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
+        train = Evaluator._evaluate_markesteijn(kernels, self.train_mos, self.train_gts)
+        val = Evaluator._evaluate_markesteijn(kernels, self.val_mos, self.val_gts)
+
+        return train, val
+
+    def evaluate_model(self, model):
+        print('Evaluating model...')
+        model.eval()
+        train = Evaluator._evaluate(model, self.train_mos, self.train_gts)
+        val = Evaluator._evaluate(model, self.val_mos, self.val_gts)
+        model.train()
+
+        return train, val
+
+    def check_if_best(self, train, val):
+        best = False
+
+        if val[0] > self.best_val[0]:
+            self.best_val[0] = val[0]
+            best = True
+
+        if val[1] > self.best_val[1]:
+            self.best_val[1] = val[1]
+
+        if train[0] > self.best_train[0]:
+            self.best_train[0] = train[0]
+
+        if train[1] > self.best_train[1]:
+            self.best_train[1] = train[1]
+
+        return best
+
+    @torch.no_grad()
+    def _calc_vals(res, tg):
+        res = apply_approximate_wb(res)
+        tg = apply_approximate_wb(tg)
+
+        psnr_vals = Evaluator._psnr(res, tg)
+        ssim_vals = ssim_fn(gamma(res), gamma(tg), data_range=1.0, reduction="none")
+
+        return psnr_vals.mean().item(), ssim_vals.mean().item()
+
+    @torch.no_grad()
+    def _evaluate(fn, mosaics, gts):
+        mosaics = mosaics.to(DEVICE)
+        gts = gts.to(DEVICE)
+
+        res = fn(mosaics)
+
+        return Evaluator._calc_vals(res, gts)
+
+    def _evaluate_markesteijn(kernels, mosaics, gts):
+        pattern = XTRANS_PATTERN.astype(np.uint8)
+        b = mosaics.shape[0]
+        size = mosaics.shape[2]
+
+        ress = torch.empty((b, 3, size, size))
+
+        for i in tqdm(range(0, b), unit='pair', desc='Markesteijn', delay=2.0):
+            mosaic = np.pad(mosaics[i, 0].numpy(), 18, mode="symmetric")
+            res = kernels.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
+            res = torch.from_numpy(np.ascontiguousarray(res[18:-18, 18:-18])).permute(2, 0, 1)[None]
+
+            ress[i] = res
+
+        return Evaluator._calc_vals(ress, gts)
+
+    def _psnr(a, b):
+        return -10 * torch.log10(F.mse_loss(a, b))
+
+
 @torch.no_grad()
 def plot_pics(gt, out):
     out_a = apply_approximate_wb(gt[0:Plot.PIC_SAMPLES, ...])
@@ -100,6 +192,36 @@ def plot_pics(gt, out):
     pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
 
     return torch.cat(pics, dim=1).cpu().numpy()
+
+
+def bold_if(str, cond):
+    return colored(str, color="light_green" if cond else None, attrs=["bold"] if cond else [])
+
+
+def pretty_score(score: tuple, best: tuple = (float('-inf'), float('-inf'))) -> str:
+    return f"PSNR: {bold_if(f"{score[0]:.2f}dB", score[0] == best[0])}, "\
+           f"SSIM: {bold_if(f"{score[1]:.4f}", score[1] == best[1])}"
+
+
+def make_eval_pairs(image_paths, size):
+    def pick(k, max_amount):
+        rng = np.random.default_rng(0)
+        return rng.choice(k, min(max_amount, k), replace=False)
+
+    images = (np.load(image_paths[i], mmap_mode="r") for i in pick(len(image_paths), MAX_EVAL_FILES))
+    crops = np.concatenate([to_patches(img, size)[0] for img in images])
+    crops = crops[pick(len(crops), MAX_EVAL_PATCHES)]
+
+    yy, xx, cfa_indices = get_mosaic_arr((size, size), XTRANS_PATTERN)
+
+    mosaics = torch.from_numpy(crops[:, yy, xx, cfa_indices]).unsqueeze(1).to(torch.float32)
+    gts = torch.from_numpy(crops).permute(0, 3, 1, 2).to(torch.float32)
+
+    return mosaics, gts
+
+
+def gamma(x):
+    return x.clamp_min(0).add(1e-3).pow(1 / 2.4)
 
 
 class GTPatches(Dataset):
@@ -183,78 +305,6 @@ class GTPatches(Dataset):
         self.counters[0] += 1
 
         return patch, gid
-
-
-def gamma(x):
-    return x.clamp_min(0).add(1e-3).pow(1 / 2.4)
-
-
-def psnr(a, b):
-    return -10 * torch.log10(F.mse_loss(a, b))
-
-
-def make_eval_pairs(image_paths, size):
-    def pick(k, max_amount):
-        rng = np.random.default_rng(0)
-        return rng.choice(k, min(max_amount, k), replace=False)
-
-    images = (np.load(image_paths[i], mmap_mode="r") for i in pick(len(image_paths), MAX_EVAL_FILES))
-    crops = np.concatenate([to_patches(img, size)[0] for img in images])
-    crops = crops[pick(len(crops), MAX_EVAL_PATCHES)]
-
-    yy, xx, cfa_indices = get_mosaic_arr((size, size), XTRANS_PATTERN)
-
-    mosaics = torch.from_numpy(crops[:, yy, xx, cfa_indices]).unsqueeze(1).to(torch.float32)
-    gts = torch.from_numpy(crops).permute(0, 3, 1, 2).to(torch.float32)
-
-    return mosaics, gts
-
-
-@torch.no_grad()
-def calc_vals(res, tg):
-    res = apply_approximate_wb(res)
-    tg = apply_approximate_wb(tg)
-
-    psnr_vals = psnr(res, tg)
-    ssim_vals = ssim_fn(gamma(res), gamma(tg), data_range=1.0, reduction="none")
-
-    return psnr_vals.mean().item(), ssim_vals.mean().item()
-
-
-def bold_if(str, cond):
-    return colored(str, color="light_green" if cond else None, attrs=["bold"] if cond else [])
-
-
-def pretty_score(score: tuple, best: tuple = (float('-inf'), float('-inf'))) -> str:
-    return f"PSNR: {bold_if(f"{score[0]:.2f}dB", score[0] == best[0])}, "\
-           f"SSIM: {bold_if(f"{score[1]:.4f}", score[1] == best[1])}"
-
-
-@torch.no_grad()
-def evaluate(fn, mosaics, gts):
-    mosaics = mosaics.to(DEVICE)
-    gts = gts.to(DEVICE)
-
-    res = fn(mosaics)
-
-    return calc_vals(res, gts)
-
-
-def evaluate_markesteijn(kernels, mosaics, gts):
-    pattern = XTRANS_PATTERN.astype(np.uint8)
-    b = mosaics.shape[0]
-    size = mosaics.shape[2]
-
-    ress = torch.empty((b, 3, size, size))
-
-    for i in tqdm(range(0, b), unit='pair', desc='Markesteijn', delay=2.0):
-        mosaic = np.pad(mosaics[i, 0].numpy(), 18, mode="symmetric")
-        res = kernels.demosaic(raw_image=mosaic, xtrans_pattern=pattern, passes=3, crop=False)
-        res = torch.from_numpy(np.ascontiguousarray(res[18:-18, 18:-18])).permute(2, 0, 1)[None]
-
-        ress[i] = res
-
-    return calc_vals(ress, gts)
 
 
 @torch.no_grad()
@@ -390,32 +440,21 @@ def main():
 
     random.seed(0)
 
-    train_mos, train_gts = make_eval_pairs(train_files, PATCH)
-    val_mos, val_gts = make_eval_pairs(val_files, EVAL_PATCH)
+    evaluator = Evaluator(*make_eval_pairs(train_files, PATCH), *make_eval_pairs(val_files, EVAL_PATCH))
 
-    print('Evaluating base model...')
-    base_train = evaluate(model.baseline, train_mos, train_gts)
-    base_val = evaluate(model.baseline, val_mos, val_gts)
+    base_train, base_val = evaluator.evaluate_base(model)
     print(f"Bilinear val {pretty_score(base_val)}, train {pretty_score(base_train)}")
 
     mark_val_score = None
 
     if not args.faststart:
-        print('Evaluating Markesteijn...')
-        os.environ.setdefault("PYOPENCL_CTX", "0")
-        kernels = MarkesteijnOpenCLDemosaicer(kernel_path="src/kernels/demosaic_markesteijn.cl")
-        mark_train_score = evaluate_markesteijn(kernels, train_mos, train_gts)
-        mark_val_score = evaluate_markesteijn(kernels, val_mos, val_gts)
+        mark_train_score, mark_val_score = evaluator.evaluate_mark()
         print(f"Markesteijn val {pretty_score(mark_val_score)}, train {pretty_score(mark_train_score)}")
     else:
         mark_train_score = mark_val_score = (float('-inf'), float('-inf'))
 
     if args.eval_only:
-        print("Evaluation...")
-        model.eval()
-        val_score = evaluate(model, val_mos, val_gts)
-        train_score = evaluate(model, train_mos, train_gts)
-        model.train()
+        train_score, val_score = evaluator.evaluate_base(model)
         print(f"val {pretty_score(val_score)} train {pretty_score(train_score)}")
 
         LOG_TXT.close()
@@ -423,9 +462,6 @@ def main():
 
     CKPT_PATH.mkdir(exist_ok=True)
     ckpt_file = CKPT_PATH / f"{args.name}.pt"
-
-    best_val_score = [float('-inf'), float('-inf')]
-    best_train_score = [float('-inf'), float('-inf')]
 
     if args.plt:
         plot = Plot(
@@ -485,31 +521,15 @@ def main():
         val_score = None
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0 or (step == 1 and args.finetune is not None):
-            model.eval()
-            train_score = evaluate(model, train_mos, train_gts)
-            val_score = evaluate(model, val_mos, val_gts)
-            model.train()
+            train_score, val_score = evaluator.evaluate_base(model)
 
-            best = False
-
-            if val_score[0] > best_val_score[0]:
-                best_val_score[0] = val_score[0]
-                best = True
-
-            if val_score[1] > best_val_score[1]:
-                best_val_score[1] = val_score[1]
-
-            if train_score[0] > best_train_score[0]:
-                best_train_score[0] = train_score[0]
-
-            if train_score[1] > best_train_score[1]:
-                best_train_score[1] = train_score[1]
+            best = evaluator.check_if_best(train_score, val_score)
 
             if best:
                 torch.save(non_compiled_model.state_dict(), ckpt_file)
 
-            print(f"val {pretty_score(val_score, best_val_score)} "
-                  f"train {pretty_score(train_score, best_train_score)}{" *" if best else ""}")
+            print(f"val {pretty_score(val_score, evaluator.best_val)} "
+                  f"train {pretty_score(train_score, evaluator.best_train)}{" *" if best else ""}")
 
         if plot is not None:
             pic = None
