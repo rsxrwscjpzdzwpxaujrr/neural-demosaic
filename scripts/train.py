@@ -321,14 +321,22 @@ def main():
     print(f"Parameter count: {sum(p.numel() for p in model.parameters()):,}")
     print()
 
-    train_files = sorted(GT_DIR.glob("*.npy"))
+    train_files = []
+    train_dirs = [GT_DIR]
+    train_dirs.extend(sorted(GT_DIR.glob("*/")))
+
+    for train_dir in train_dirs:
+        files = sorted(train_dir.glob("*.npy"))
+        print(f"{len(files)} train images from {train_dir.stem}")
+        train_files.extend(files)
+
     val_files = sorted(VAL_DIR.glob("*.npy"))
 
     if args.faststart:
         train_files = train_files[:10]
         val_files = val_files[:10]
 
-    print(f"{len(train_files)} train images")
+    print(f"{len(train_files)} train images total")
     print(f"{len(val_files)} val images")
     print()
 
