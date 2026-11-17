@@ -31,7 +31,6 @@ EVAL_PATCH = 288
 BATCH = 0
 ITERS = 0
 LR = 0.0
-WARMUP_ITERS = 250
 LOG_EVERY = 50
 VAL_EVERY = 1000
 EZ_DISCARD_THRESHOLD = 0.0
@@ -257,6 +256,7 @@ def main():
     parser.add_argument("--width", type=int, default=32, help="Model width. Default 32.")
     parser.add_argument("--depth", type=int, default=8, help="Model depth. Default 8.")
     parser.add_argument("--iters", type=int, default=50000, help="Training iteration count. Default 50000.")
+    parser.add_argument("--warmup-iters", type=int, default=1000, help="Warmup iteration count. Default 1000.")
     parser.add_argument("--patch", type=int, default=96, help="Training patch size. Default 96.")
     parser.add_argument("--batch", type=int, default=32, help="Training batch size. Default 32.")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate. Default 1e-3.")
@@ -274,6 +274,8 @@ def main():
     parser.add_argument("--no-compile", action="store_true", help="Disable compiling the model.")
     parser.add_argument("--eval-only", action="store_true", help="Only evaluate. Specify --name, --width, and --depth")
     args = parser.parse_args()
+
+    assert args.warmup_iters < args.iters, "Warmup iter count should be lower than total iter count."
 
     global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES, LOG_TXT, EZ_DISCARD_THRESHOLD, NOISE
     ITERS, PATCH, BATCH, LR = args.iters, args.patch, args.batch, args.lr
@@ -313,9 +315,9 @@ def main():
     opt = torch.optim.AdamW(model.parameters(), lr=LR)
     sched = torch.optim.lr_scheduler.SequentialLR(
         opt, schedulers=[
-            torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.01, end_factor=1.0, total_iters=WARMUP_ITERS),
-            torch.optim.lr_scheduler.CosineAnnealingLR(opt, ITERS - WARMUP_ITERS)
-        ], milestones=[WARMUP_ITERS]
+            torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.01, end_factor=1.0, total_iters=args.warmup_iters),
+            torch.optim.lr_scheduler.CosineAnnealingLR(opt, ITERS - args.warmup_iters)
+        ], milestones=[args.warmup_iters]
     )
 
     print(f"Parameter count: {sum(p.numel() for p in model.parameters()):,}")
