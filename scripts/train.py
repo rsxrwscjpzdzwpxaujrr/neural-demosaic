@@ -31,7 +31,6 @@ EVAL_PATCH = 288
 BATCH = 0
 ITERS = 0
 LR = 0.0
-LOG_EVERY = 50
 VAL_EVERY = 1000
 EZ_DISCARD_THRESHOLD = 0.0
 
@@ -55,6 +54,52 @@ def our_write(cls='', *args, **kwargs):
 
     if LOG_TXT is not None:
         __builtins__.print(strip_ansi(cls), file=LOG_TXT, flush=True, *args, **kwargs)
+
+
+class Logger:
+    LOG_EVERY = 50
+
+    def __init__(self, iters: int, batch: int, dataset):
+        assert iters > Logger.LOG_EVERY, "Total iter count can't be higher than LOG_EVERY"
+
+        self.iters = iters
+        self.batch = batch
+        self.dataset = dataset
+        self.running = 0.0
+        self.t0 = time.time()
+        self.hard_discarded = 0
+
+    def tick(self, step: int, loss: float, last_lr: float, hard_discarded: int):
+        self.running += loss
+        self.hard_discarded += hard_discarded
+
+        if step % Logger.LOG_EVERY == 0 or step == self.iters:
+            avg_loss = self.running / Logger.LOG_EVERY
+            easy_patches = self.dataset.ez_discarded / self.dataset.total_patches
+            self.dataset.counters.zero_()
+            print(f"step {step}/{self.iters}  loss {avg_loss:.5f}  "
+                  f"lr {last_lr:.2e}  "
+                  f"discarded ez: {easy_patches * 100.0:.1f}%, "
+                  f"hard: {self.hard_discarded / (Logger.LOG_EVERY * self.batch) * 100.0:.3f}%  "
+                  f"{Logger.LOG_EVERY * self.batch / (time.time() - self.t0):.0f} img/s")
+            self.hard_discarded = 0
+            self.running = 0.0
+            self.t0 = time.time()
+
+
+@torch.no_grad()
+def plot_pics(gt, out):
+    out_a = apply_approximate_wb(gt[0:Plot.PIC_SAMPLES, ...])
+    out_b = apply_approximate_wb(out[0:Plot.PIC_SAMPLES, ...])
+
+    pics = [
+        gamma(out_a),
+        gamma(out_b),
+        (((out_a - out_b) * 10.0) + 0.5)
+    ]
+    pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
+
+    return torch.cat(pics, dim=1).cpu().numpy()
 
 
 class GTPatches(Dataset):
@@ -277,6 +322,7 @@ def main():
 
     assert args.warmup_iters < args.iters, "Warmup iter count should be lower than total iter count."
 
+    global print
     global ITERS, PATCH, BATCH, LR, YY, XX, CFA_INDICES, LOG_TXT, EZ_DISCARD_THRESHOLD, NOISE
     ITERS, PATCH, BATCH, LR = args.iters, args.patch, args.batch, args.lr
     EZ_DISCARD_THRESHOLD, NOISE = args.ez_discard_threshold, args.noise
@@ -380,10 +426,6 @@ def main():
 
     best_val_score = [float('-inf'), float('-inf')]
     best_train_score = [float('-inf'), float('-inf')]
-    running = 0.0
-    t0 = time.time()
-    max_loss = 0.0
-    hard_discarded = 0
 
     if args.plt:
         plot = Plot(
@@ -399,6 +441,8 @@ def main():
     loader = DataLoader(GTPatches(train_files), batch_size=BATCH, num_workers=4,
                         prefetch_factor=10, persistent_workers=True, shuffle=False)
 
+    logger = Logger(args.iters, args.batch, loader.dataset)
+
     pbar = tqdm(enumerate(loader, 1), total=ITERS, miniters=10, mininterval=0.0, maxinterval=99999.9, smoothing=0.2)
     for step, (gt, gid) in pbar:
         mosaic, gt = preprocess(gt.to(DEVICE))
@@ -411,12 +455,13 @@ def main():
         stats = dict(zip(gid, loss.detach().cpu().tolist()))
 
         hard_discard_mask = loss > args.discard_threshold
-        hard_discarded += hard_discard_mask.sum().item()
+        hard_discarded = hard_discard_mask.sum().item()
         loss[hard_discard_mask] = 0.0
 
         loss = loss.mean()
+        loss_num = loss.item()
 
-        if loss.item() == 0.0:
+        if loss_num == 0.0:
             print("Zero loss, training failed")
             break
 
@@ -429,28 +474,13 @@ def main():
         )
         opt.step()
         sched.step()
-        running += loss.item()
 
         loader.dataset.apply_patch_stats(stats)
 
         if step % FILES_EVERY == 0 and step != ITERS:
             loader.dataset.load_files(train_files)
 
-        if step % LOG_EVERY == 0 or step == ITERS:
-            avg_loss = running / LOG_EVERY
-            easy_patches = loader.dataset.ez_discarded / loader.dataset.total_patches
-            loader.dataset.counters.zero_()
-            print(f"step {step}/{ITERS}  loss {avg_loss:.5f}  "
-                  f"lr {sched.get_last_lr()[0]:.2e}  "
-                  f"discarded ez: {easy_patches * 100.0:.1f}%, "
-                  f"hard: {hard_discarded / (LOG_EVERY * BATCH) * 100.0:.3f}%  "
-
-                  f"{LOG_EVERY * BATCH / (time.time() - t0):.0f} img/s")
-            hard_discarded = 0
-            running = 0.0
-            t0 = time.time()
-
-            max_loss = max(max_loss, avg_loss)
+        logger.tick(step, loss_num, sched.get_last_lr()[0], hard_discarded)
 
         val_score = None
 
@@ -481,24 +511,13 @@ def main():
             print(f"val {pretty_score(val_score, best_val_score)} "
                   f"train {pretty_score(train_score, best_train_score)}{" *" if best else ""}")
 
-        pic = None
-
-        if plot is not None and step % Plot.SAMPLES_EVERY == 0:
-            with torch.no_grad():
-                out_a = apply_approximate_wb(gt[0:Plot.PIC_SAMPLES, ...])
-                out_b = apply_approximate_wb(out[0:Plot.PIC_SAMPLES, ...])
-
-                pics = [
-                    gamma(out_a),
-                    gamma(out_b),
-                    (((out_a - out_b) * 10.0) + 0.5)
-                ]
-                pics = [pic.permute(0, 2, 3, 1).clamp(0, 1).reshape(-1, PATCH, 3) for pic in pics]
-
-                pic = torch.cat(pics, dim=1).cpu().numpy()
-
         if plot is not None:
-            plot.tick(step, loss.item(), None if val_score is None else (val_score[0], train_score[0]), pic)
+            pic = None
+
+            if step % Plot.SAMPLES_EVERY == 0:
+                pic = plot_pics(gt, out)
+
+            plot.tick(step, loss_num, None if val_score is None else (val_score[0], train_score[0]), pic)
 
     since_start = datetime.now(timezone.utc) - start_time
     since_start = since_start - timedelta(microseconds=since_start.microseconds)
