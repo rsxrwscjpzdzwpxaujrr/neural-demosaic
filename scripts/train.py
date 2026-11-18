@@ -521,7 +521,7 @@ def main():
         val_score = None
 
         if (step / ITERS) >= args.val_since and step % VAL_EVERY == 0 or (step == 1 and args.finetune is not None):
-            train_score, val_score = evaluator.evaluate_base(model)
+            train_score, val_score = evaluator.evaluate_model(model)
 
             best = evaluator.check_if_best(train_score, val_score)
 
